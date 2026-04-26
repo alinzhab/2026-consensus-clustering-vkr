@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Система тестирования консенсусной кластеризации</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --page-bg: linear-gradient(180deg, #eef4ff 0%, #f8fafc 50%, #ffffff 100%);
+            --card-shadow: 0 16px 40px rgba(15, 23, 42, .08);
+            --soft-border: rgba(148, 163, 184, .22);
+            --accent-soft: #dbeafe;
+            --text-soft: #64748b;
+        }
+        body { background: var(--page-bg); color: #1e293b; }
+        .hero {
+            border-radius: 28px;
+            padding: 2.25rem;
+            margin-bottom: 1.5rem;
+            background:
+                radial-gradient(circle at top left, rgba(37, 99, 235, .12), transparent 35%),
+                radial-gradient(circle at top right, rgba(14, 165, 233, .1), transparent 30%),
+                rgba(255, 255, 255, .78);
+            box-shadow: var(--card-shadow);
+            backdrop-filter: blur(10px);
+        }
+        .hero-badge {
+            display: inline-block;
+            padding: .42rem .8rem;
+            border-radius: 999px;
+            background: var(--accent-soft);
+            color: #1d4ed8;
+            font-size: .92rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+        }
+        .card {
+            border: 1px solid var(--soft-border);
+            border-radius: 22px;
+            box-shadow: var(--card-shadow);
+            background: rgba(255, 255, 255, .92);
+            backdrop-filter: blur(10px);
+        }
+        .section-note { color: var(--text-soft); font-size: .96rem; }
+        .metric { font-size: 1.1rem; font-weight: 700; }
+        .small-mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .92rem; }
+        .tab-caption {
+            margin-top: .9rem;
+            margin-bottom: 1rem;
+            padding: .9rem 1rem;
+            border-radius: 16px;
+            background: #f8fafc;
+            color: #475569;
+            font-size: .95rem;
+        }
+        .list-group-item {
+            border: 1px solid var(--soft-border);
+            border-radius: 16px !important;
+            margin-bottom: .75rem;
+        }
+        .form-label { font-weight: 600; color: #334155; }
+        .form-control, .form-select {
+            border-radius: 14px;
+            border-color: rgba(148, 163, 184, .35);
+            padding-top: .8rem;
+            padding-bottom: .8rem;
+        }
+        .btn {
+            border-radius: 14px;
+            font-weight: 600;
+            padding-top: .8rem;
+            padding-bottom: .8rem;
+        }
+        .nav-tabs .nav-link {
+            border-radius: 14px 14px 0 0;
+            font-weight: 600;
+        }
+        pre { white-space: pre-wrap; word-break: break-word; }
+    </style>
+</head>
+<body>
+<div class="container py-4">
+    <div class="hero">
+        <div class="hero-badge">Веб-система для вычислительных экспериментов</div>
+        <h1 class="display-4 fw-bold mb-3">Система тестирования консенсусной кластеризации</h1>
+        <p class="lead mb-0 text-secondary">Загружайте собственные датасеты, создавайте синтетические наборы с нужными параметрами, сохраняйте результаты и сравнивайте алгоритмы в одном интерфейсе.</p>
+    </div>
+
+    <div class="row g-4">
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="h5 mb-3">1. Загрузка датасета</h3>
+                    <p class="section-note">Можно загрузить свой набор данных и сразу использовать его для тестирования алгоритмов.</p>
+                    <form method="post" action="{{ url_for('upload_dataset') }}" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label class="form-label">Файл датасета</label>
+                            <input class="form-control" type="file" name="dataset_file" accept=".npz,.mat" required>
+                        </div>
+                        <div class="form-text mb-3">
+                            Поддерживаются <span class="small-mono">.npz</span> и <span class="small-mono">.mat</span>. Для корректной работы внутри должны быть как минимум <span class="small-mono">members</span> и <span class="small-mono">gt</span>.
+                        </div>
+                        <button class="btn btn-primary w-100">Загрузить</button>
+                    </form>
+                    {% if upload_message %}
+                    <div class="alert alert-info mt-3 mb-0">{{ upload_message }}</div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mt-4">
+                <div class="card-body">
+                    <h3 class="h5 mb-3">2. Выбор датасета</h3>
+                    <p class="section-note">Здесь отображаются все доступные реальные, загруженные и синтетические датасеты.</p>
+                    <div class="list-group small">
+                        {% for ds in datasets %}
+                        <div class="list-group-item">
+                            <div class="fw-semibold">{{ ds.name }}</div>
+                            <div class="text-secondary small-mono">{{ ds.suffix }}, {{ ds.size_kb }} KB</div>
+                            {% if ds.members_shape %}
+                            <div class="mt-1">members: <span class="small-mono">{{ ds.members_shape }}</span></div>
+                            {% endif %}
+                            {% if ds.x_shape %}
+                            <div>X: <span class="small-mono">{{ ds.x_shape }}</span></div>
+                            {% endif %}
+                            {% if ds.n_classes %}
+                            <div>классов: <span class="small-mono">{{ ds.n_classes }}</span></div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-8">
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3 class="h5 mb-3">Генерация синтетического датасета</h3>
+                    <p class="section-note">Выберите подходящий генератор и задайте параметры будущего набора данных.</p>
+                    <ul class="nav nav-tabs" id="generatorTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#densired" type="button">Сложные плотностные кластеры</button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" data-bs-toggle="tab" data-bs-target="#repliclust" type="button">Архетипные кластеры</button>
+                        </li>
+                    </ul>
+                    <div class="tab-content pt-3">
+                        <div class="tab-pane fade show active" id="densired">
+                            <div class="tab-caption">Подходит для генерации сложных кластеров с ветвлениями, шумом, неоднородной плотностью и неровной формой.</div>
+                            <form method="post" action="{{ url_for('generate_dataset') }}">
+                                <input type="hidden" name="generator_type" value="densired">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Имя датасета</label>
+                                        <input class="form-control" name="dataset_name" value="custom_densired_dataset" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Размерность</label>
+                                        <input class="form-control" name="densired_dim" type="number" value="2" min="2">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Число кластеров</label>
+                                        <input class="form-control" name="densired_clunum" type="number" value="6" min="2">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Число ядер</label>
+                                        <input class="form-control" name="densired_core_num" type="number" value="80" min="10">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Число объектов</label>
+                                        <input class="form-control" name="densired_data_num" type="number" value="2000" min="100">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Случайное зерно</label>
+                                        <input class="form-control" name="densired_seed" type="number" value="19">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Доля шума</label>
+                                        <input class="form-control" name="densired_noise_ratio" type="number" step="0.01" value="0.10">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Радиус локальной области</label>
+                                        <input class="form-control" name="densired_radius" type="number" step="0.001" value="0.04">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Шаг блуждания</label>
+                                        <input class="form-control" name="densired_step" type="number" step="0.001" value="0.06">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Инерция</label>
+                                        <input class="form-control" name="densired_momentum" type="number" step="0.01" value="0.40">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Вероятность ветвления</label>
+                                        <input class="form-control" name="densired_branch" type="number" step="0.01" value="0.05">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Возврат к центру</label>
+                                        <input class="form-control" name="densired_star" type="number" step="0.01" value="0.10">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Коэффициенты плотности</label>
+                                        <input class="form-control" name="densired_density_factors" value="1,1,0.8,1.2,0.6,1.4">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Распределение</label>
+                                        <select class="form-select" name="densired_distribution">
+                                            <option value="uniform">uniform</option>
+                                            <option value="gaussian">gaussian</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <button class="btn btn-success mt-3">Сгенерировать и сохранить</button>
+                            </form>
+                        </div>
+                        <div class="tab-pane fade" id="repliclust">
+                            <div class="tab-caption">Подходит для генерации более интерпретируемых кластеров с управляемой вытянутостью, перекрытием, размерами и дисбалансом классов.</div>
+                            <form method="post" action="{{ url_for('generate_dataset') }}">
+                                <input type="hidden" name="generator_type" value="repliclust">
+                                <div class="row g-3">
+                                    <div class="col-md-6">
+                                        <label class="form-label">Имя датасета</label>
+                                        <input class="form-control" name="dataset_name" value="custom_repliclust_dataset" required>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Размерность</label>
+                                        <input class="form-control" name="repliclust_dim" type="number" value="2" min="2">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Число кластеров</label>
+                                        <input class="form-control" name="repliclust_n_clusters" type="number" value="6" min="2">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Число объектов</label>
+                                        <input class="form-control" name="repliclust_n_samples" type="number" value="2500" min="100">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Базовая вытянутость</label>
+                                        <input class="form-control" name="repliclust_aspect_ref" type="number" step="0.1" value="4.0">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Разброс вытянутости</label>
+                                        <input class="form-control" name="repliclust_aspect_maxmin" type="number" step="0.1" value="6.0">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Базовый размер кластера</label>
+                                        <input class="form-control" name="repliclust_radius_ref" type="number" step="0.1" value="1.0">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Разброс размеров</label>
+                                        <input class="form-control" name="repliclust_radius_maxmin" type="number" step="0.1" value="2.0">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Минимальное перекрытие</label>
+                                        <input class="form-control" name="repliclust_min_overlap" type="number" step="0.01" value="0.08">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Максимальное перекрытие</label>
+                                        <input class="form-control" name="repliclust_max_overlap" type="number" step="0.01" value="0.18">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Дисбаланс классов</label>
+                                        <input class="form-control" name="repliclust_imbalance_ratio" type="number" step="0.1" value="2.5">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">Случайное зерно</label>
+                                        <input class="form-control" name="repliclust_seed" type="number" value="19">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Используемые распределения</label>
+                                        <input class="form-control" name="repliclust_distributions" value="normal,student_t,lognormal">
+                                    </div>
+                                    <div class="col-md-6">
+                                        <label class="form-label">Доли распределений</label>
+                                        <input class="form-control" name="repliclust_distribution_proportions" value="0.5,0.3,0.2">
+                                    </div>
+                                </div>
+                                <button class="btn btn-success mt-3">Сгенерировать и сохранить</button>
+                            </form>
+                        </div>
+                    </div>
+                    {% if generation_result %}
+                        {% if generation_result.error %}
+                        <div class="alert alert-danger mt-3 mb-0">{{ generation_result.error }}</div>
+                        {% else %}
+                        <div class="alert alert-success mt-3">
+                            <div class="fw-semibold">{{ generation_result.message }}</div>
+                            <div class="mt-2">X: <span class="small-mono">{{ generation_result.x_shape }}</span></div>
+                            <div>gt: <span class="small-mono">{{ generation_result.gt_shape }}</span></div>
+                            <div>members: <span class="small-mono">{{ generation_result.members_shape }}</span></div>
+                        </div>
+                        <details class="mt-3">
+                            <summary>Характеристики датасета</summary>
+                            <pre class="mt-2 small-mono">{{ generation_result.meta_pretty }}</pre>
+                        </details>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card mb-4">
+                <div class="card-body">
+                    <h3 class="h5 mb-3">3. Тестирование алгоритмов</h3>
+                    <p class="section-note">Выберите датасет и алгоритм, после чего система рассчитает метрики качества и сохранит результат запуска.</p>
+                    <form method="post" action="{{ url_for('run_algorithms') }}">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Датасет</label>
+                                <select class="form-select" name="selected_dataset" required>
+                                    {% for ds in datasets %}
+                                    <option value="{{ ds.name.rsplit('.', 1)[0] }}">{{ ds.name.rsplit('.', 1)[0] }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Алгоритм</label>
+                                <select class="form-select" name="algorithm">
+                                    <option value="hierarchical_baseline">Иерархическая базовая версия</option>
+                                    <option value="hierarchical_weighted">Иерархическая взвешенная версия</option>
+                                    <option value="sdgca">SDGCA</option>
+                                    <option value="sdgca_modified">SDGCA, модифицированная версия</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Случайное зерно</label>
+                                <input class="form-control" name="seed" type="number" value="19">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Число базовых разбиений (m)</label>
+                                <input class="form-control" name="m" type="number" value="20" min="2">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Число запусков</label>
+                                <input class="form-control" name="runs" type="number" value="5" min="1">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Правило объединения</label>
+                                <select class="form-select" name="method">
+                                    <option value="average">average</option>
+                                    <option value="complete">complete</option>
+                                    <option value="single">single</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Усиление весов</label>
+                                <input class="form-control" name="sharpen" type="number" step="0.1" value="1.5">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Лямбда SDGCA</label>
+                                <input class="form-control" name="lambda_" type="number" step="0.01" value="0.09">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Эта SDGCA</label>
+                                <input class="form-control" name="eta" type="number" step="0.01" value="0.75">
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Тета SDGCA</label>
+                                <input class="form-control" name="theta" type="number" step="0.01" value="0.65">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Лямбда для модифицированной версии</label>
+                                <input class="form-control" name="lambda_mod" type="number" step="0.01" placeholder="по умолчанию">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Эта для модифицированной версии</label>
+                                <input class="form-control" name="eta_mod" type="number" step="0.01" placeholder="по умолчанию">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Тета для модифицированной версии</label>
+                                <input class="form-control" name="theta_mod" type="number" step="0.01" placeholder="по умолчанию">
+                            </div>
+                        </div>
+                        <button class="btn btn-primary mt-3">Запустить тестирование</button>
+                    </form>
+                    {% if run_result %}
+                        {% if run_result.error %}
+                        <div class="alert alert-danger mt-3 mb-0">{{ run_result.error }}</div>
+                        {% else %}
+                        <div class="alert alert-primary mt-3 mb-0">
+                            <div class="fw-semibold">{{ run_result.algorithm_label }} / {{ run_result.dataset }}</div>
+                            <div class="mt-2 row g-2">
+                                <div class="col-md-4"><div class="metric">NMI: {{ run_result.nmi_mean }}</div><div class="text-secondary">std {{ run_result.nmi_std }}</div></div>
+                                <div class="col-md-4"><div class="metric">ARI: {{ run_result.ari_mean }}</div><div class="text-secondary">std {{ run_result.ari_std }}</div></div>
+                                <div class="col-md-4"><div class="metric">F-score: {{ run_result.f_mean }}</div><div class="text-secondary">std {{ run_result.f_std }}</div></div>
+                            </div>
+                        </div>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-body">
+                    <h3 class="h5 mb-3">Сохранённые результаты</h3>
+                    <p class="section-note">Каждый эксперимент сохраняется отдельно, чтобы можно было вернуться к нему и сравнить несколько запусков.</p>
+                    <div class="table-responsive">
+                        <table class="table align-middle">
+                            <thead>
+                                <tr>
+                                    <th>Дата</th>
+                                    <th>Датасет</th>
+                                    <th>Алгоритм</th>
+                                    <th>Правило объединения</th>
+                                    <th>NMI</th>
+                                    <th>ARI</th>
+                                    <th>F-score</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in results %}
+                                <tr>
+                                    <td>{{ item.created_at }}</td>
+                                    <td>{{ item.dataset }}</td>
+                                    <td>{{ item.algorithm_label }}</td>
+                                    <td>{{ item.method_label }}</td>
+                                    <td>{{ item.nmi_mean }}</td>
+                                    <td>{{ item.ari_mean }}</td>
+                                    <td>{{ item.f_mean }}</td>
+                                </tr>
+                                {% else %}
+                                <tr><td colspan="7" class="text-secondary">Пока результатов нет.</td></tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-kicker">Главная страница</div>
+    <h1 class="display-4 fw-bold mb-3">Система тестирования алгоритмов консенсусной кластеризации</h1>
+    <p class="lead text-secondary mb-0">В системе доступны инструменты для работы с датасетами, генерации синтетических данных, запуска алгоритмов и просмотра результатов экспериментов.</p>
+</section>
+
+<section class="row g-4 mt-1">
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-label">Доступных датасетов</div>
+            <div class="stat-value">{{ dataset_count }}</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-label">Сохранённых результатов</div>
+            <div class="stat-value">{{ result_count }}</div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card">
+            <div class="stat-label">Основные возможности</div>
+            <div class="fw-semibold mt-2">Работа с датасетами, запуск алгоритмов и анализ метрик качества.</div>
+        </div>
+    </div>
+</section>
+
+<section class="row g-4 mt-1">
+    <div class="col-lg-6">
+        <div class="card-panel p-4 h-100">
+            <h2 class="h4 mb-3">Разделы системы</h2>
+            <p class="section-note">Основные сценарии работы вынесены на отдельные страницы.</p>
+            <div class="row g-3 mt-1">
+                <div class="col-md-6">
+                    <div class="list-card">
+                        <div class="fw-bold mb-2">Датасеты</div>
+                        <div class="section-note">Загрузка собственных наборов и просмотр характеристик доступных файлов.</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="list-card">
+                        <div class="fw-bold mb-2">Генерация</div>
+                        <div class="section-note">Создание синтетических выборок с управляемыми параметрами.</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="list-card">
+                        <div class="fw-bold mb-2">Тестирование</div>
+                        <div class="section-note">Запуск реализованных алгоритмов и получение метрик качества.</div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="list-card">
+                        <div class="fw-bold mb-2">Результаты</div>
+                        <div class="section-note">Сравнение предыдущих запусков и просмотр истории экспериментов.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card-panel p-4 h-100">
+            <h2 class="h4 mb-3">Последние результаты</h2>
+            <p class="section-note">Ниже отображаются последние сохранённые запуски.</p>
+            <div class="row g-3 mt-1">
+                {% for item in recent_results %}
+                <div class="col-12">
+                    <div class="list-card">
+                        <div class="d-flex justify-content-between gap-3 align-items-start">
+                            <div>
+                                <div class="fw-bold">{{ item.algorithm_label }}</div>
+                                <div class="section-note">{{ item.dataset }} · {{ item.method_label }}</div>
+                            </div>
+                            <div class="text-secondary small">{{ item.created_at }}</div>
+                        </div>
+                        <div class="row g-2 mt-2">
+                            <div class="col-sm-4"><span class="small text-secondary">NMI</span><div class="fw-semibold">{{ item.nmi_mean }}</div></div>
+                            <div class="col-sm-4"><span class="small text-secondary">ARI</span><div class="fw-semibold">{{ item.ari_mean }}</div></div>
+                            <div class="col-sm-4"><span class="small text-secondary">F-score</span><div class="fw-semibold">{{ item.f_mean }}</div></div>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-12">
+                    <div class="list-card">
+                        <div class="section-note">Пока эксперименты не запускались. Начать можно со страницы «Генерация» или «Тестирование».</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

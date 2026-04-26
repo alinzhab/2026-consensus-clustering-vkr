@@ -1,0 +1,18 @@
+{
+  "dataset": "BBC",
+  "algorithm": "sdgca",
+  "method": "average",
+  "seed": 19,
+  "m": 20,
+  "runs": 5,
+  "nmi_mean": 0.39695,
+  "nmi_std": 0.098239,
+  "ari_mean": 0.204341,
+  "ari_std": 0.120055,
+  "f_mean": 0.468751,
+  "f_std": 0.064893,
+  "created_at": "2026-04-25T10:57:06",
+  "lambda_": 0.09,
+  "eta": 0.75,
+  "theta": 0.65
+}

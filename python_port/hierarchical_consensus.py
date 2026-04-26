@@ -160,7 +160,7 @@ def main():
     parser.add_argument("--seed", type=int, default=19)
     parser.add_argument("--m", type=int, default=40)
     parser.add_argument("--runs", type=int, default=20)
-    parser.add_argument("--method", default="average", choices=["average", "complete", "single"])
+    parser.add_argument("--method", default="average", choices=["average", "complete", "single", "ward"])
     args = parser.parse_args()
     dataset_path = Path(args.root) / f"{args.dataset}.mat"
     if not dataset_path.exists():

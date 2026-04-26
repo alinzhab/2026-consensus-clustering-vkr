@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-kicker">Страница результатов</div>
+    <h1 class="display-5 fw-bold mb-3">Журнал проведённых экспериментов</h1>
+    <p class="lead text-secondary mb-0">Все запуски сохраняются отдельно, поэтому результаты удобно сравнивать и использовать при подготовке отчёта или демонстрации.</p>
+</section>
+
+<section class="card-panel p-4 mt-4">
+    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+        <h2 class="h4 mb-0">Сохранённые результаты</h2>
+        <div class="text-secondary">Всего: {{ result_count }}</div>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+                <tr>
+                    <th>Дата</th>
+                    <th>Датасет</th>
+                    <th>Алгоритм</th>
+                    <th>Правило объединения</th>
+                    <th>NMI</th>
+                    <th>ARI</th>
+                    <th>F-score</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in results %}
+                <tr>
+                    <td>{{ item.created_at }}</td>
+                    <td>{{ item.dataset }}</td>
+                    <td>{{ item.algorithm_label }}</td>
+                    <td>{{ item.method_label }}</td>
+                    <td>{{ item.nmi_mean }}</td>
+                    <td>{{ item.ari_mean }}</td>
+                    <td>{{ item.f_mean }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7" class="text-secondary">Пока результатов нет. Сначала запустите алгоритм на странице «Тестирование».</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}

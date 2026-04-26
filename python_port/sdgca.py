@@ -7,20 +7,31 @@ from scipy.io import loadmat
 from scipy.spatial.distance import squareform
 
 
-def load_dataset(dataset_path):
+def load_dataset_full(dataset_path):
     dataset_path = Path(dataset_path)
     if dataset_path.suffix.lower() == ".mat":
         data = loadmat(dataset_path)
         members = np.asarray(data["members"], dtype=np.int64)
         gt = np.asarray(data["gt"]).reshape(-1).astype(np.int64)
+        x = None
+        for key in ("X", "x", "data", "fea", "features"):
+            if key in data:
+                x = np.asarray(data[key], dtype=np.float64)
+                break
     elif dataset_path.suffix.lower() == ".npz":
         data = np.load(dataset_path, allow_pickle=True)
         members = np.asarray(data["members"], dtype=np.int64)
         gt = np.asarray(data["gt"]).reshape(-1).astype(np.int64)
+        x = np.asarray(data["X"], dtype=np.float64) if "X" in data.files else None
     else:
         raise ValueError(f"Unsupported dataset format: {dataset_path.suffix}")
     if gt.min() == 0:
         gt = gt + 1
+    return members, gt, x
+
+
+def load_dataset(dataset_path):
+    members, gt, _ = load_dataset_full(dataset_path)
     return members, gt
 
 
@@ -339,7 +350,7 @@ def main():
     parser.add_argument("--lambda_", type=float, default=0.09)
     parser.add_argument("--eta", type=float, default=0.75)
     parser.add_argument("--theta", type=float, default=0.65)
-    parser.add_argument("--method", default="average", choices=["average", "complete", "single"])
+    parser.add_argument("--method", default="average", choices=["average", "complete", "single", "ward"])
     args = parser.parse_args()
     dataset_path = Path(args.root) / f"{args.dataset}.mat"
     if not dataset_path.exists():

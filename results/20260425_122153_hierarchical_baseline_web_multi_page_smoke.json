@@ -1,0 +1,17 @@
+{
+  "dataset": "web_multi_page_smoke",
+  "algorithm": "hierarchical_baseline",
+  "algorithm_label": "Иерархическая базовая версия",
+  "method": "average",
+  "method_label": "average",
+  "seed": 19,
+  "m": 10,
+  "runs": 2,
+  "nmi_mean": 1.0,
+  "nmi_std": 0.0,
+  "ari_mean": 1.0,
+  "ari_std": 0.0,
+  "f_mean": 1.0,
+  "f_std": 0.0,
+  "created_at": "2026-04-25T12:21:53"
+}

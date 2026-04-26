@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-kicker">Страница датасетов</div>
+    <h1 class="display-5 fw-bold mb-3">Загрузка и просмотр наборов данных</h1>
+    <p class="lead text-secondary mb-0">Здесь можно добавить собственный датасет в систему и посмотреть характеристики всех доступных наборов.</p>
+</section>
+
+<section class="row g-4 mt-1">
+    <div class="col-lg-4">
+        <div class="card-panel p-4">
+            <h2 class="h4 mb-3">Загрузка файла</h2>
+            <p class="section-note">Поддерживаются файлы форматов <span class="small-mono">.npz</span> и <span class="small-mono">.mat</span>. Для корректной работы внутри должны быть как минимум <span class="small-mono">members</span> и <span class="small-mono">gt</span>.</p>
+            <form method="post" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label class="form-label">Файл датасета</label>
+                    <input class="form-control" type="file" name="dataset_file" accept=".npz,.mat" required>
+                </div>
+                <button class="btn btn-primary w-100">Загрузить датасет</button>
+            </form>
+            {% if upload_message %}
+            <div class="alert alert-info mt-3 mb-0">{{ upload_message }}</div>
+            {% endif %}
+        </div>
+    </div>
+    <div class="col-lg-8">
+        <div class="card-panel p-4">
+            <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
+                <h2 class="h4 mb-0">Доступные датасеты</h2>
+                <div class="text-secondary">Всего: {{ dataset_count }}</div>
+            </div>
+            <div class="row g-3">
+                {% for ds in datasets %}
+                <div class="col-md-6">
+                    <div class="list-card h-100">
+                        <div class="fw-bold mb-2">{{ ds.name }}</div>
+                        <div class="section-note mb-2">{{ ds.suffix }}, {{ ds.size_kb }} KB</div>
+                        {% if ds.members_shape %}
+                        <div>members: <span class="small-mono">{{ ds.members_shape }}</span></div>
+                        {% endif %}
+                        {% if ds.x_shape %}
+                        <div>X: <span class="small-mono">{{ ds.x_shape }}</span></div>
+                        {% endif %}
+                        {% if ds.gt_shape %}
+                        <div>gt: <span class="small-mono">{{ ds.gt_shape }}</span></div>
+                        {% endif %}
+                        {% if ds.n_classes %}
+                        <div>Число классов: <span class="small-mono">{{ ds.n_classes }}</span></div>
+                        {% endif %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-12">
+                    <div class="list-card">
+                        <div class="section-note">Пока датасетов нет. Можно загрузить файл или перейти на страницу генерации синтетических данных.</div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

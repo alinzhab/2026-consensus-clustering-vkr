@@ -30,7 +30,7 @@ def main():
     parser.add_argument("--seed", type=int, default=19)
     parser.add_argument("--m", type=int, default=40)
     parser.add_argument("--runs", type=int, default=20)
-    parser.add_argument("--method", default="average", choices=["average", "complete", "single"])
+    parser.add_argument("--method", default="average", choices=["average", "complete", "single", "ward"])
     parser.add_argument("--sharpen", type=float, default=1.0)
     parser.add_argument("--output", default=Path(__file__).resolve().parents[1] / "results" / "benchmark.tsv")
     args = parser.parse_args()
