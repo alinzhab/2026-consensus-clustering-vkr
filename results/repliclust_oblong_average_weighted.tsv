@@ -1,0 +1,2 @@
+dataset	mode	nmi_mean	nmi_std	ari_mean	ari_std	f_mean	f_std	seconds
+repliclust_oblong_overlap	weighted	0.826067	0.002074	0.678766	0.001170	0.751313	0.000922	50.08
