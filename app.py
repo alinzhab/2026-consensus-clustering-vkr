@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -347,4 +348,7 @@ def results_page():
 
 if __name__ == "__main__":
     ensure_dirs()
-    app.run(debug=True)
+    host = os.environ.get("FLASK_HOST", "0.0.0.0")
+    port = int(os.environ.get("PORT", os.environ.get("FLASK_PORT", 5000)))
+    debug = os.environ.get("FLASK_DEBUG", "").lower() in {"1", "true", "yes", "on"}
+    app.run(host=host, port=port, debug=debug)
