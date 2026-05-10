@@ -10,3 +10,5 @@ services:
         value: 3.11.9
       - key: FLASK_DEBUG
         value: "false"
+      - key: DEMO_MODE
+        value: "true"

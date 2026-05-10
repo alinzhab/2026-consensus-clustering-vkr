@@ -1,0 +1,776 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-hero">
+    <div class="page-kicker">Исследовательская аналитика</div>
+    <h1 class="display-5 fw-bold mb-3">Сравнительный анализ алгоритмов</h1>
+    <p class="lead text-secondary mb-0">
+        Интерактивные графики для сравнения алгоритмов консенсус кластеризации
+        по метрикам, типам данных и стратегиям субдискретизации ансамбля.
+    </p>
+</section>
+
+<div class="d-flex gap-2" style="flex:0 0 auto;">
+    <a href="{{ url_for('analytics_page') }}" class="nav-pill active" style="font-size:.83rem;">📊 Мои эксперименты</a>
+    <a href="{{ url_for('massive_analytics_page') }}" class="nav-pill" style="font-size:.83rem;">🔬 Массовый бенчмарк</a>
+</div>
+
+<!-- Фильтры -->
+<section class="card-panel p-4 mt-4">
+    <h2 class="h5 mb-3">Фильтры</h2>
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label class="form-label fw-semibold">Метрика</label>
+            <select id="metricFilter" class="form-select">
+                <option value="nmi_mean">NMI</option>
+                <option value="ari_mean">ARI</option>
+                <option value="f_mean">F-score</option>
+                <option value="runtime_sec">Runtime (с)</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label fw-semibold">Правило объединения</label>
+            <select id="linkageFilter" class="form-select">
+                <option value="all">Все</option>
+                <option value="average">average</option>
+                <option value="complete">complete</option>
+                <option value="single">single</option>
+                <option value="ward">ward</option>
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label class="form-label fw-semibold">Тип данных</label>
+            <select id="typeFilter" class="form-select">
+                <option value="all">Все</option>
+                <option value="real_bio">Реальные (биология)</option>
+                <option value="real_text">Реальные (текст)</option>
+                <option value="compact">Синт. компактные</option>
+                <option value="overlapping">Синт. перекрывающиеся</option>
+                <option value="elongated">Синт. вытянутые</option>
+                <option value="density_varied">Синт. неоднородная плотность</option>
+                <option value="imbalanced">Синт. с дисбалансом</option>
+                <option value="high_dimensional">Высокоразмерные</option>
+                <option value="mixed_complex">Синт. сложные</option>
+            </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+            <button id="applyFilters" class="btn btn-dark w-100">Применить</button>
+        </div>
+    </div>
+</section>
+
+<!-- Статус загрузки -->
+<div id="loadingMsg" class="card-panel p-4 mt-4 text-center text-secondary">
+    Загрузка данных...
+</div>
+
+<!-- Графики -->
+<div id="chartsContainer" style="display:none;">
+
+    <!-- Bar chart: среднее по алгоритмам -->
+    <section class="card-panel p-4 mt-4">
+        <h2 class="h5 mb-1">Среднее значение метрики по алгоритмам</h2>
+        <p class="text-secondary small mb-3">
+            Сравнение четырёх алгоритмов консенсус кластеризации.
+            Фильтры применяются к набору датасетов и правилам linkage.
+        </p>
+        <div id="barChart" style="height:380px;"></div>
+    </section>
+
+    <!-- Heatmap: алгоритм × датасет -->
+    <section class="card-panel p-4 mt-4">
+        <h2 class="h5 mb-1">Тепловая карта: алгоритм × датасет</h2>
+        <p class="text-secondary small mb-3">
+            Каждая ячейка — среднее значение выбранной метрики. Позволяет
+            увидеть, на каких датасетах и каким алгоритмом достигается лучший результат.
+        </p>
+        <div id="heatmapChart" style="height:420px;"></div>
+    </section>
+
+    <!-- QD vs Random -->
+    <section class="card-panel p-4 mt-4">
+        <h2 class="h5 mb-1">QD-selection vs Random: ΔNMI по датасетам</h2>
+        <p class="text-secondary small mb-3">
+            Разность NMI(QD) − NMI(random) для каждого алгоритма и датасета.
+            Положительные значения: QD-selection улучшает результат.
+            Данные берутся из файла <code>results/qd_selection_analysis.tsv</code>,
+            если он существует.
+        </p>
+        <div id="qdChart" style="height:420px;"></div>
+        <div id="qdNoData" class="text-secondary small mt-2" style="display:none;">
+            Нет данных QD-эксперимента. Запустите:
+            <code>python experiments/run_qd_selection_analysis.py</code>
+        </div>
+    </section>
+
+    <!-- Среднее по типам данных -->
+    <section class="card-panel p-4 mt-4">
+        <h2 class="h5 mb-1">Среднее качество по типам данных</h2>
+        <p class="text-secondary small mb-3">
+            Позволяет ответить на вопрос: на каких типах данных (биологические,
+            синтетические вытянутые, высокоразмерные и т.д.) каждый алгоритм
+            работает лучше или хуже. Это ключевой анализ для формулировки
+            выводов ВКР.
+        </p>
+        <div id="typeChart" style="height:420px;"></div>
+    </section>
+
+    <!-- Разброс runtime -->
+    <section class="card-panel p-4 mt-4">
+        <h2 class="h5 mb-1">Время работы алгоритмов (QD-эксперимент)</h2>
+        <p class="text-secondary small mb-3">
+            Runtime в секундах для каждого алгоритма и датасета из QD-эксперимента.
+            Иллюстрирует вычислительную стоимость SDGCA относительно иерархических методов.
+        </p>
+        <div id="runtimeChart" style="height:360px;"></div>
+        <div id="runtimeNoData" class="text-secondary small mt-2" style="display:none;">
+            Нет данных QD-эксперимента.
+        </div>
+    </section>
+
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SDGCA Modified Ablation Study
+     Данные из results/sdgca_modified_ablation_latest.tsv
+     Запустить: python experiments/run_sdgca_modified_ablation.py --profile mini
+     ════════════════════════════════════════════════════════════════════════ -->
+<div id="ablationContainer" style="display:none;">
+
+    <section class="card-panel p-4 mt-5">
+        <div class="page-kicker">Ablation Study</div>
+        <h2 class="h4 mb-2">SDGCA Modified: декомпозиция вклада компонентов</h2>
+        <p class="text-secondary small mb-0">
+            Сравнение шести вариантов: A (baseline), B (modified, fixed t), C (modified, adaptive t),
+            и их QD-версий (D/E/F). Нечёткие веса, heat-kernel диффузия и adaptive diffusion time
+            изолированы от эффекта QD-selection.
+            Для запуска:
+            <code>python experiments/run_sdgca_modified_ablation.py --profile mini --m 8 --runs 3</code>
+        </p>
+    </section>
+
+    <!-- Ablation bar: NMI по вариантам -->
+    <section class="card-panel p-4 mt-4">
+        <h2 class="h5 mb-1">NMI по вариантам (среднее по датасетам)</h2>
+        <p class="text-secondary small mb-3">
+            Каждый столбец — среднее NMI варианта на всех датасетах.
+            A = baseline, B = modified fixed t=1.0, C = modified adaptive t.
+            D/E/F — те же варианты с QD-selection.
+        </p>
+        <div id="ablationBarChart" style="height:360px;"></div>
+    </section>
+
+    <!-- Delta NMI: C−B (adaptive t vs fixed t) -->
+    <section class="card-panel p-4 mt-4">
+        <h2 class="h5 mb-1">ΔNMI: adaptive t − fixed t (C − B) по датасетам</h2>
+        <p class="text-secondary small mb-3">
+            Положительное значение → adaptive diffusion time улучшает результат по сравнению
+            с фиксированным t=1.0. Нейтральные значения ожидаемы на датасетах с NMI≈1.0 базово.
+        </p>
+        <div id="ablationDeltaChart" style="height:360px;"></div>
+    </section>
+
+    <!-- Runtime по вариантам -->
+    <section class="card-panel p-4 mt-4">
+        <h2 class="h5 mb-1">Runtime: сравнение вариантов (секунды)</h2>
+        <p class="text-secondary small mb-3">
+            Иллюстрирует накладные расходы модификаций. Если C (adaptive) близко к B (fixed) —
+            это сильный аргумент: adaptive t добавляет negligible overhead.
+        </p>
+        <div id="ablationRuntimeChart" style="height:360px;"></div>
+    </section>
+
+    <!-- Heatmap: variant × dataset_type -->
+    <section class="card-panel p-4 mt-4">
+        <h2 class="h5 mb-1">Тепловая карта ablation: вариант × тип данных</h2>
+        <p class="text-secondary small mb-3">
+            NMI в разрезе типов данных. Позволяет увидеть, где modified помогает,
+            а где модификация нейтральна или хуже.
+        </p>
+        <div id="ablationHeatmap" style="height:420px;"></div>
+    </section>
+
+    <!-- QD effect: E−B и F−C -->
+    <section class="card-panel p-4 mt-4">
+        <h2 class="h5 mb-1">Эффект QD-selection на SDGCA modified (E−B, F−C)</h2>
+        <p class="text-secondary small mb-3">
+            Изолированный эффект QD-selection на modified variants.
+            E−B: QD vs random при fixed t. F−C: QD vs random при adaptive t.
+        </p>
+        <div id="ablationQdEffectChart" style="height:360px;"></div>
+    </section>
+
+    <!-- Runtime vs n (scaling) -->
+    <section class="card-panel p-4 mt-4">
+        <h2 class="h5 mb-1">Runtime vs n (число объектов)</h2>
+        <p class="text-secondary small mb-3">
+            Точки: один датасет = одно n. Цвет = вариант ablation. По оси Y — wall-clock
+            за полный вызов алгоритма (все прогоны <code>runs</code>). Для оценки масштаба
+            см. также секцию «Runtime scaling» в <code>sdgca_modified_ablation_summary.md</code>
+            (подгонка <code>time ≈ a · n<sup>b</sup></code>).
+        </p>
+        <div id="ablationRuntimeVsNChart" style="height:400px;"></div>
+    </section>
+
+    <!-- Adaptive diffusion time distribution -->
+    <section class="card-panel p-4 mt-4">
+        <h2 class="h5 mb-1">Adaptive diffusion time: распределение по датасетам</h2>
+        <p class="text-secondary small mb-3">
+            Значения t, вычисленные через спектральный зазор. Показывает, как сильно
+            adaptive t отклоняется от t=1.0 на разных типах данных.
+        </p>
+        <div id="ablationDiffTimeChart" style="height:340px;"></div>
+    </section>
+
+</div>
+<div id="ablationNoData" class="card-panel p-4 mt-5 text-center text-secondary">
+    <p class="mb-2">Ablation-данные отсутствуют.</p>
+    <p class="small mb-0">Запустите:
+        <code>python experiments/run_sdgca_modified_ablation.py --profile mini --m 8 --runs 3</code>
+    </p>
+</div>
+
+<!-- Plotly.js -->
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+
+<script>
+const ALGO_LABELS = {
+    "hierarchical_baseline": "HC Базовый",
+    "hierarchical_weighted": "HC Взвешенный",
+    "sdgca": "SDGCA",
+    "sdgca_modified": "SDGCA Модиф.",
+};
+const ALGO_COLORS = {
+    "hierarchical_baseline": "#4C72B0",
+    "hierarchical_weighted": "#DD8452",
+    "sdgca": "#55A868",
+    "sdgca_modified": "#C44E52",
+};
+const TYPE_LABELS = {
+    "real_bio": "Реальные (биология)",
+    "real_text": "Реальные (текст)",
+    "compact": "Синт. компактные",
+    "overlapping": "Синт. перекрывающиеся",
+    "elongated": "Синт. вытянутые",
+    "density_varied": "Синт. неоднородная плотность",
+    "imbalanced": "Синт. с дисбалансом",
+    "high_dimensional": "Высокоразмерные",
+    "mixed_complex": "Синт. сложные",
+    "unknown": "Неизвестный тип",
+};
+
+const METRIC_LABELS = {
+    "nmi_mean": "NMI",
+    "ari_mean": "ARI",
+    "f_mean": "F-score",
+    "runtime_sec": "Runtime (с)",
+};
+
+let allData = null;
+
+// ─── утилиты ────────────────────────────────────────────────────────────────
+
+function groupMean(rows, keyFn, valFn) {
+    const acc = {};
+    const cnt = {};
+    for (const r of rows) {
+        const k = keyFn(r);
+        const v = valFn(r);
+        if (v == null || isNaN(v)) continue;
+        acc[k] = (acc[k] || 0) + v;
+        cnt[k] = (cnt[k] || 0) + 1;
+    }
+    const out = {};
+    for (const k of Object.keys(acc)) out[k] = acc[k] / cnt[k];
+    return out;
+}
+
+function filterRows(rows, linkage, dsType) {
+    return rows.filter(r => {
+        const okLink = (linkage === "all") || (r.method === linkage) || (r.linkage === linkage);
+        const rType = r.dataset_type || "unknown";
+        const okType = (dsType === "all") || (rType === dsType);
+        return okLink && okType;
+    });
+}
+
+// ─── графики ────────────────────────────────────────────────────────────────
+
+function drawBarChart(rows, metric) {
+    const algos = ["hierarchical_baseline", "hierarchical_weighted", "sdgca", "sdgca_modified"];
+    const means = groupMean(rows, r => r.algorithm, r => parseFloat(r[metric]));
+    const traces = algos.map(a => ({
+        type: "bar",
+        name: ALGO_LABELS[a] || a,
+        x: [ALGO_LABELS[a] || a],
+        y: [means[a] != null ? +means[a].toFixed(4) : 0],
+        marker: { color: ALGO_COLORS[a] || "#999" },
+    }));
+    Plotly.react("barChart", traces, {
+        barmode: "group",
+        yaxis: { title: METRIC_LABELS[metric] || metric, range: metric === "nmi_mean" || metric === "ari_mean" || metric === "f_mean" ? [0, 1] : undefined },
+        xaxis: { showticklabels: false },
+        legend: { orientation: "h", y: -0.15 },
+        margin: { t: 20, b: 60, l: 60, r: 20 },
+        plot_bgcolor: "#fafaf8",
+        paper_bgcolor: "transparent",
+    }, { responsive: true });
+}
+
+function drawHeatmap(rows, metric) {
+    const algos = ["hierarchical_baseline", "hierarchical_weighted", "sdgca", "sdgca_modified"];
+    const datasets = [...new Set(rows.map(r => r.dataset))].sort();
+
+    const zMatrix = algos.map(algo => {
+        return datasets.map(ds => {
+            const sub = rows.filter(r => r.algorithm === algo && r.dataset === ds);
+            if (!sub.length) return null;
+            const vals = sub.map(r => parseFloat(r[metric])).filter(v => !isNaN(v));
+            return vals.length ? +(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(4) : null;
+        });
+    });
+
+    Plotly.react("heatmapChart", [{
+        type: "heatmap",
+        z: zMatrix,
+        x: datasets,
+        y: algos.map(a => ALGO_LABELS[a] || a),
+        colorscale: "RdYlGn",
+        zmin: metric === "runtime_sec" ? undefined : 0,
+        zmax: metric === "runtime_sec" ? undefined : 1,
+        text: zMatrix.map(row => row.map(v => v != null ? v.toFixed(3) : "—")),
+        texttemplate: "%{text}",
+        showscale: true,
+        colorbar: { title: METRIC_LABELS[metric] || metric, thickness: 14 },
+    }], {
+        margin: { t: 20, b: 100, l: 160, r: 60 },
+        xaxis: { tickangle: -30 },
+        plot_bgcolor: "#fafaf8",
+        paper_bgcolor: "transparent",
+    }, { responsive: true });
+}
+
+function drawQdChart(qdRows) {
+    if (!qdRows || !qdRows.length) {
+        document.getElementById("qdChart").style.display = "none";
+        document.getElementById("qdNoData").style.display = "";
+        return;
+    }
+
+    const algos = [...new Set(qdRows.map(r => r.algorithm))].sort();
+    const datasets = [...new Set(qdRows.map(r => r.dataset))].sort();
+
+    // ΔNMI per (algo, dataset)
+    const deltaMap = {};
+    for (const algo of algos) {
+        deltaMap[algo] = {};
+        for (const ds of datasets) {
+            const rndRow = qdRows.find(r => r.algorithm === algo && r.dataset === ds && r.selection_strategy === "random");
+            const qdRow = qdRows.find(r => r.algorithm === algo && r.dataset === ds && r.selection_strategy === "qd");
+            if (rndRow && qdRow) {
+                deltaMap[algo][ds] = +(parseFloat(qdRow.nmi_mean) - parseFloat(rndRow.nmi_mean)).toFixed(4);
+            }
+        }
+    }
+
+    const traces = algos.map(algo => ({
+        type: "bar",
+        name: ALGO_LABELS[algo] || algo,
+        x: datasets,
+        y: datasets.map(ds => deltaMap[algo][ds] != null ? deltaMap[algo][ds] : 0),
+        marker: { color: ALGO_COLORS[algo] || "#999" },
+    }));
+
+    Plotly.react("qdChart", traces, {
+        barmode: "group",
+        yaxis: { title: "ΔNMI (QD − random)", zeroline: true, zerolinecolor: "#333", zerolinewidth: 1.5 },
+        xaxis: { tickangle: -20 },
+        legend: { orientation: "h", y: -0.2 },
+        margin: { t: 20, b: 100, l: 70, r: 20 },
+        plot_bgcolor: "#fafaf8",
+        paper_bgcolor: "transparent",
+        shapes: [{ type: "line", x0: -0.5, x1: datasets.length - 0.5, y0: 0, y1: 0,
+                    line: { color: "#333", width: 1, dash: "dot" } }],
+    }, { responsive: true });
+}
+
+function drawTypeChart(rows, metric) {
+    const algos = ["hierarchical_baseline", "hierarchical_weighted", "sdgca", "sdgca_modified"];
+    const types = [...new Set(rows.map(r => r.dataset_type || "unknown"))].sort();
+
+    const traces = algos.map(algo => {
+        const vals = types.map(t => {
+            const sub = rows.filter(r => r.algorithm === algo && (r.dataset_type || "unknown") === t);
+            if (!sub.length) return null;
+            const vs = sub.map(r => parseFloat(r[metric])).filter(v => !isNaN(v));
+            return vs.length ? +(vs.reduce((a, b) => a + b, 0) / vs.length).toFixed(4) : null;
+        });
+        return {
+            type: "bar",
+            name: ALGO_LABELS[algo] || algo,
+            x: types.map(t => TYPE_LABELS[t] || t),
+            y: vals,
+            marker: { color: ALGO_COLORS[algo] || "#999" },
+        };
+    });
+
+    Plotly.react("typeChart", traces, {
+        barmode: "group",
+        yaxis: { title: METRIC_LABELS[metric] || metric, range: metric === "runtime_sec" ? undefined : [0, 1] },
+        xaxis: { tickangle: -20 },
+        legend: { orientation: "h", y: -0.25 },
+        margin: { t: 20, b: 120, l: 70, r: 20 },
+        plot_bgcolor: "#fafaf8",
+        paper_bgcolor: "transparent",
+    }, { responsive: true });
+}
+
+function drawRuntimeChart(qdRows) {
+    if (!qdRows || !qdRows.length) {
+        document.getElementById("runtimeChart").style.display = "none";
+        document.getElementById("runtimeNoData").style.display = "";
+        return;
+    }
+    const algos = [...new Set(qdRows.map(r => r.algorithm))].sort();
+    const datasets = [...new Set(qdRows.map(r => r.dataset))].sort();
+
+    const traces = algos.map(algo => ({
+        type: "bar",
+        name: ALGO_LABELS[algo] || algo,
+        x: datasets,
+        y: datasets.map(ds => {
+            const sub = qdRows.filter(r => r.algorithm === algo && r.dataset === ds);
+            if (!sub.length) return 0;
+            const vs = sub.map(r => parseFloat(r.runtime_sec || 0)).filter(v => !isNaN(v));
+            return vs.length ? +(vs.reduce((a, b) => a + b, 0) / vs.length).toFixed(2) : 0;
+        }),
+        marker: { color: ALGO_COLORS[algo] || "#999" },
+    }));
+
+    Plotly.react("runtimeChart", traces, {
+        barmode: "group",
+        yaxis: { title: "Runtime (с)", type: "log" },
+        xaxis: { tickangle: -20 },
+        legend: { orientation: "h", y: -0.25 },
+        margin: { t: 20, b: 100, l: 70, r: 20 },
+        plot_bgcolor: "#fafaf8",
+        paper_bgcolor: "transparent",
+    }, { responsive: true });
+}
+
+// ─── логика обновления ───────────────────────────────────────────────────────
+
+function applyFiltersAndDraw() {
+    if (!allData) return;
+    const metric = document.getElementById("metricFilter").value;
+    const linkage = document.getElementById("linkageFilter").value;
+    const dsType = document.getElementById("typeFilter").value;
+
+    // DB-результаты: фильтруем и добавляем dataset_type
+    let dbRows = filterRows(allData.db_results || [], linkage, dsType);
+    // QD-результаты: фильтруем по linkage и dsType тоже
+    let qdRows = filterRows(allData.qd_results || [], linkage, dsType);
+
+    // Объединяем для bar/heatmap/type charts (QD-эксперимент имеет приоритет)
+    const combinedRows = [...dbRows, ...qdRows];
+
+    drawBarChart(combinedRows, metric);
+    drawHeatmap(combinedRows, metric);
+    drawQdChart(allData.qd_results || []);  // QD vs random — всегда без фильтра dsType/linkage
+    drawTypeChart(combinedRows, metric);
+    drawRuntimeChart(allData.qd_results || []);
+}
+
+// ─── инициализация ────────────────────────────────────────────────────────────
+
+document.getElementById("applyFilters").addEventListener("click", applyFiltersAndDraw);
+
+// ─── Ablation charts ──────────────────────────────────────────────────────────
+
+const ABLATION_VARIANT_LABELS = {
+    "A_baseline_random":          "A: Baseline, random",
+    "B_modified_fixed_random":    "B: Modified fixed t, random",
+    "C_modified_adaptive_random": "C: Modified adaptive t, random",
+    "D_baseline_qd":              "D: Baseline, QD",
+    "E_modified_fixed_qd":        "E: Modified fixed t, QD",
+    "F_modified_adaptive_qd":     "F: Modified adaptive t, QD",
+    "G_modified_tuned_random":    "G: Modified tuned, random",
+    "H_modified_tuned_qd":        "H: Modified tuned, QD",
+};
+const ABLATION_VARIANT_COLORS = {
+    "A_baseline_random":          "#4C72B0",
+    "B_modified_fixed_random":    "#DD8452",
+    "C_modified_adaptive_random": "#55A868",
+    "D_baseline_qd":              "#8172B2",
+    "E_modified_fixed_qd":        "#937860",
+    "F_modified_adaptive_qd":     "#C44E52",
+    "G_modified_tuned_random":    "#999999",
+    "H_modified_tuned_qd":        "#bcbd22",
+};
+
+function _abMean(arr) {
+    if (!arr || arr.length === 0) return null;
+    return arr.reduce((s, v) => s + v, 0) / arr.length;
+}
+
+function drawAblationCharts(rows) {
+    if (!rows || rows.length === 0) {
+        document.getElementById("ablationNoData").style.display = "";
+        document.getElementById("ablationContainer").style.display = "none";
+        return;
+    }
+    document.getElementById("ablationNoData").style.display = "none";
+    document.getElementById("ablationContainer").style.display = "";
+
+    const variants = [...new Set(rows.map(r => r.variant))].sort();
+    const datasets = [...new Set(rows.map(r => r.dataset))];
+    const types    = [...new Set(rows.map(r => r.dataset_type))].sort();
+
+    // ── helper: nmi lookup ───────────────────────────────────────────────
+    const nmiMap = {};
+    rows.forEach(r => {
+        const key = `${r.variant}||${r.dataset}||${r.linkage}||${r.seed}`;
+        nmiMap[key] = parseFloat(r.nmi_mean);
+    });
+    function lookupNmi(variant, dataset, linkage, seed) {
+        return nmiMap[`${variant}||${dataset}||${linkage}||${seed}`];
+    }
+
+    const defaultPlotLayout = {
+        margin: { t: 20, b: 110, l: 70, r: 20 },
+        plot_bgcolor: "#fafaf8",
+        paper_bgcolor: "transparent",
+        legend: { orientation: "h", y: -0.28 },
+    };
+    const conf = { responsive: true };
+
+    // 1. Bar: mean NMI per variant ─────────────────────────────────────────
+    {
+        const traces = [];
+        variants.forEach(v => {
+            const vals = rows.filter(r => r.variant === v).map(r => parseFloat(r.nmi_mean));
+            const m = _abMean(vals);
+            if (m === null) return;
+            traces.push({
+                type: "bar",
+                name: ABLATION_VARIANT_LABELS[v] || v,
+                x: [ABLATION_VARIANT_LABELS[v] || v],
+                y: [m],
+                marker: { color: ABLATION_VARIANT_COLORS[v] || "#888" },
+            });
+        });
+        Plotly.react("ablationBarChart", traces, {
+            ...defaultPlotLayout,
+            yaxis: { title: "Mean NMI", range: [0, 1.05] },
+            xaxis: { tickangle: -30 },
+            showlegend: false,
+        }, conf);
+    }
+
+    // 2. Delta NMI: C−B per dataset ───────────────────────────────────────
+    {
+        const linkages = [...new Set(rows.map(r => r.linkage))];
+        const seeds    = [...new Set(rows.map(r => parseInt(r.seed)))];
+        const deltas = [];
+        const dLabels = [];
+        datasets.forEach(ds => {
+            linkages.forEach(lnk => {
+                seeds.forEach(sd => {
+                    const b = lookupNmi("B_modified_fixed_random", ds, lnk, sd);
+                    const c = lookupNmi("C_modified_adaptive_random", ds, lnk, sd);
+                    if (b !== undefined && c !== undefined) {
+                        deltas.push(+(c - b).toFixed(4));
+                        dLabels.push(ds);
+                    }
+                });
+            });
+        });
+        const colors = deltas.map(d => d > 0.002 ? "#55A868" : (d < -0.002 ? "#C44E52" : "#aaa"));
+        Plotly.react("ablationDeltaChart", [{
+            type: "bar",
+            x: dLabels,
+            y: deltas,
+            marker: { color: colors },
+        }], {
+            ...defaultPlotLayout,
+            yaxis: { title: "ΔNMI (C − B)", zeroline: true, zerolinecolor: "#444" },
+            xaxis: { tickangle: -30 },
+            showlegend: false,
+        }, conf);
+    }
+
+    // 3. Runtime per variant ──────────────────────────────────────────────
+    {
+        const traces = [];
+        variants.forEach(v => {
+            const rts = rows.filter(r => r.variant === v).map(r => parseFloat(r.runtime_sec));
+            if (!rts.length) return;
+            traces.push({
+                type: "box",
+                name: ABLATION_VARIANT_LABELS[v] || v,
+                y: rts,
+                marker: { color: ABLATION_VARIANT_COLORS[v] || "#888" },
+                boxmean: "sd",
+            });
+        });
+        Plotly.react("ablationRuntimeChart", traces, {
+            ...defaultPlotLayout,
+            yaxis: { title: "Runtime (s)" },
+            xaxis: { tickangle: -30 },
+            showlegend: false,
+        }, conf);
+    }
+
+    // 4. Heatmap: variant × dataset_type ──────────────────────────────────
+    {
+        const zData = variants.map(v =>
+            types.map(t => {
+                const vals = rows
+                    .filter(r => r.variant === v && r.dataset_type === t)
+                    .map(r => parseFloat(r.nmi_mean));
+                return _abMean(vals);
+            })
+        );
+        Plotly.react("ablationHeatmap", [{
+            type: "heatmap",
+            z: zData,
+            x: types.map(t => t),
+            y: variants.map(v => ABLATION_VARIANT_LABELS[v] || v),
+            colorscale: "Blues",
+            zmin: 0, zmax: 1,
+            text: zData.map(row => row.map(v => v !== null ? v.toFixed(3) : "—")),
+            texttemplate: "%{text}",
+            hovertemplate: "NMI=%{z:.3f}<extra>%{y} / %{x}</extra>",
+        }], {
+            ...defaultPlotLayout,
+            margin: { t: 20, b: 130, l: 220, r: 20 },
+            xaxis: { tickangle: -25 },
+        }, conf);
+    }
+
+    // 5. QD effect on modified: E−B and F−C per dataset ───────────────────
+    {
+        const linkages = [...new Set(rows.map(r => r.linkage))];
+        const seeds    = [...new Set(rows.map(r => parseInt(r.seed)))];
+        const labelsEB = [], labelsFC = [], dEB = [], dFC = [];
+        datasets.forEach(ds => {
+            linkages.forEach(lnk => {
+                seeds.forEach(sd => {
+                    const b = lookupNmi("B_modified_fixed_random", ds, lnk, sd);
+                    const e = lookupNmi("E_modified_fixed_qd",     ds, lnk, sd);
+                    if (b !== undefined && e !== undefined) {
+                        dEB.push(+(e - b).toFixed(4));
+                        labelsEB.push(ds);
+                    }
+                    const c = lookupNmi("C_modified_adaptive_random", ds, lnk, sd);
+                    const f = lookupNmi("F_modified_adaptive_qd",     ds, lnk, sd);
+                    if (c !== undefined && f !== undefined) {
+                        dFC.push(+(f - c).toFixed(4));
+                        labelsFC.push(ds);
+                    }
+                });
+            });
+        });
+        Plotly.react("ablationQdEffectChart", [
+            {
+                type: "bar", name: "E−B: QD effect (fixed t)",
+                x: labelsEB, y: dEB,
+                marker: { color: ABLATION_VARIANT_COLORS["E_modified_fixed_qd"] },
+            },
+            {
+                type: "bar", name: "F−C: QD effect (adaptive t)",
+                x: labelsFC, y: dFC,
+                marker: { color: ABLATION_VARIANT_COLORS["F_modified_adaptive_qd"] },
+            },
+        ], {
+            ...defaultPlotLayout,
+            barmode: "group",
+            yaxis: { title: "ΔNMI (QD − random)", zeroline: true, zerolinecolor: "#444" },
+            xaxis: { tickangle: -30 },
+        }, conf);
+    }
+
+    // 6. Runtime vs n_objects ─────────────────────────────────────────────
+    {
+        const traces = [];
+        variants.forEach(v => {
+            const sub = rows.filter(r => r.variant === v);
+            if (!sub.length) return;
+            traces.push({
+                type: "scatter",
+                mode: "markers",
+                name: ABLATION_VARIANT_LABELS[v] || v,
+                x: sub.map(r => parseInt(r.n_objects, 10)),
+                y: sub.map(r => parseFloat(r.runtime_sec)),
+                marker: { size: 9, color: ABLATION_VARIANT_COLORS[v] || "#888" },
+                text: sub.map(r => r.dataset),
+                hovertemplate: "%{text}<br>n=%{x}<br>runtime=%{y:.2f}s<extra>" + (ABLATION_VARIANT_LABELS[v] || v) + "</extra>",
+            });
+        });
+        Plotly.react("ablationRuntimeVsNChart", traces, {
+            ...defaultPlotLayout,
+            xaxis: { title: "n (число объектов)", type: "linear" },
+            yaxis: { title: "Runtime (s)", type: "log" },
+            legend: { orientation: "h", y: -0.35 },
+        }, conf);
+    }
+
+    // 7. Adaptive diffusion time per dataset ──────────────────────────────
+    {
+        const adaptiveRows = rows.filter(r =>
+            (r.variant === "C_modified_adaptive_random" || r.variant === "F_modified_adaptive_qd")
+            && r.diffusion_time_used !== "" && r.diffusion_time_used !== null
+        );
+        if (adaptiveRows.length) {
+            const grouped = {};
+            adaptiveRows.forEach(r => {
+                const ds = r.dataset;
+                if (!grouped[ds]) grouped[ds] = [];
+                grouped[ds].push(parseFloat(r.diffusion_time_used));
+            });
+            const dsKeys = Object.keys(grouped).sort();
+            Plotly.react("ablationDiffTimeChart", [{
+                type: "bar",
+                x: dsKeys,
+                y: dsKeys.map(ds => _abMean(grouped[ds])),
+                marker: { color: ABLATION_VARIANT_COLORS["C_modified_adaptive_random"] },
+                error_y: {
+                    type: "data",
+                    array: dsKeys.map(ds => {
+                        const v = grouped[ds];
+                        if (v.length < 2) return 0;
+                        const m = _abMean(v);
+                        return Math.sqrt(v.reduce((s, x) => s + (x-m)**2, 0) / v.length);
+                    }),
+                    visible: true,
+                },
+            }], {
+                ...defaultPlotLayout,
+                shapes: [{ type: "line", x0: -0.5, x1: dsKeys.length - 0.5,
+                            y0: 1.0, y1: 1.0, line: { dash: "dot", color: "#C44E52", width: 1.5 } }],
+                annotations: [{ x: dsKeys.length - 1, y: 1.0, text: "t=1.0 (fixed)",
+                                 showarrow: false, font: { size: 10, color: "#C44E52" }, xanchor: "right" }],
+                yaxis: { title: "Adaptive diffusion time t", range: [0, 6] },
+                xaxis: { tickangle: -30 },
+                showlegend: false,
+            }, conf);
+        }
+    }
+}
+
+fetch("/api/results-json")
+    .then(r => r.json())
+    .then(data => {
+        allData = data;
+        document.getElementById("loadingMsg").style.display = "none";
+        document.getElementById("chartsContainer").style.display = "";
+        applyFiltersAndDraw();
+        // Ablation: отдельный endpoint
+        drawAblationCharts(data.ablation_results || []);
+    })
+    .catch(err => {
+        document.getElementById("loadingMsg").textContent =
+            "Ошибка загрузки данных: " + err.message;
+    });
+</script>
+{% endblock %}

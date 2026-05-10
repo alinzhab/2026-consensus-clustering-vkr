@@ -1,0 +1,463 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    .massive-wide {
+        width: 100%;
+        margin-left: 0;
+        transform: none;
+    }
+    .massive-hero {
+        min-height: clamp(360px, 42vh, 560px);
+        display: grid;
+        grid-template-columns: minmax(320px, 0.85fr) minmax(420px, 1.35fr);
+        align-items: end;
+        gap: clamp(2rem, 5vw, 6rem);
+    }
+    .massive-hero-copy {
+        max-width: 640px;
+    }
+    .massive-hero-title {
+        font-size: clamp(3rem, 5.2vw, 6.6rem);
+        line-height: .9;
+        letter-spacing: -.075em;
+    }
+    .massive-hero-text {
+        max-width: 560px;
+        font-size: clamp(1.05rem, 1.25vw, 1.35rem);
+        line-height: 1.55;
+    }
+    .massive-profile-panel {
+        justify-self: stretch;
+        align-self: end;
+        padding: clamp(1.2rem, 2.1vw, 2rem);
+        border: 1px solid var(--line);
+        border-radius: var(--radius-lg);
+        background: var(--surface-muted);
+        overflow: hidden;
+    }
+    .massive-profile-title {
+        color: var(--ink-muted);
+        font-size: .78rem;
+        font-weight: 800;
+        letter-spacing: .08em;
+        text-transform: uppercase;
+        margin-bottom: .75rem;
+    }
+    .massive-profile-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: .7rem;
+    }
+    .massive-profile-item {
+        min-width: 0;
+        padding: .72rem .8rem;
+        border-radius: 12px;
+        background: #fff;
+        border: 1px solid var(--line);
+    }
+    .massive-profile-key {
+        color: var(--ink-muted);
+        font-size: .68rem;
+        font-weight: 800;
+        letter-spacing: .07em;
+        text-transform: uppercase;
+        margin-bottom: .25rem;
+    }
+    .massive-profile-value {
+        color: var(--ink);
+        font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+        font-size: .88rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    .massive-chart-card {
+        min-height: 450px;
+    }
+    @media (max-width: 1100px) {
+        .massive-hero {
+            grid-template-columns: 1fr;
+            align-items: start;
+            min-height: auto;
+        }
+        .massive-profile-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+    }
+    @media (max-width: 700px) {
+        .massive-wide {
+            width: 100%;
+        }
+        .massive-hero {
+            gap: 1.5rem;
+        }
+        .massive-hero-title {
+            font-size: clamp(2.4rem, 14vw, 4.2rem);
+        }
+        .massive-profile-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>
+
+<div class="d-flex gap-2" style="flex:0 0 auto;padding-top:.75rem;">
+    <a href="{{ url_for('analytics_page') }}" class="nav-pill" style="font-size:.83rem;">📊 Мои эксперименты</a>
+    <a href="{{ url_for('massive_analytics_page') }}" class="nav-pill active" style="font-size:.83rem;">🔬 Массовый бенчмарк</a>
+</div>
+
+<section class="page-hero massive-wide massive-hero">
+    <div class="massive-hero-copy">
+        <span class="page-kicker">Dataset-level protocol</span>
+            <h1 class="massive-hero-title fw-bold mb-3">Single vs consensus analytics</h1>
+            <p class="massive-hero-text text-secondary mb-0">
+                Интерактивный разбор: где консенсус кластеризация выигрывает у одиночных алгоритмов,
+                где проигрывает, и насколько цена по runtime оправдана.
+            </p>
+    </div>
+    <div class="massive-profile-panel">
+        <div class="massive-profile-title">Selected validation profile</div>
+        <div class="massive-profile-grid" id="profileBox">
+            <div class="text-secondary">loading</div>
+        </div>
+    </div>
+</section>
+
+<section class="mt-4 card-panel p-3 p-lg-4 massive-wide">
+    <div class="row g-3">
+        <div class="col-md-2">
+            <label class="form-label">Split</label>
+            <select class="form-select" id="splitFilter">
+                <option value="test" selected>test</option>
+                <option value="validation">validation</option>
+                <option value="train">train</option>
+                <option value="all">all</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Metric</label>
+            <select class="form-select" id="metricFilter">
+                <option value="NMI" selected>NMI</option>
+                <option value="ARI">ARI</option>
+                <option value="F-score">F-score</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Dataset type</label>
+            <select class="form-select" id="typeFilter">
+                <option value="all" selected>all</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Family</label>
+            <select class="form-select" id="familyFilter">
+                <option value="all" selected>all</option>
+                <option value="single">single</option>
+                <option value="consensus">consensus</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Size</label>
+            <select class="form-select" id="sizeFilter">
+                <option value="all" selected>all</option>
+                <option value="small">small</option>
+                <option value="medium">medium</option>
+                <option value="large">large</option>
+            </select>
+        </div>
+        <div class="col-md-2">
+            <label class="form-label">Max n</label>
+            <input class="form-control" id="maxNFilter" type="number" placeholder="no limit">
+        </div>
+    </div>
+</section>
+
+<section class="mt-4 massive-wide">
+    <div class="row g-4">
+        <div class="col-xl-6"><div class="card-panel p-3 massive-chart-card"><div id="qualityBar" style="height:430px"></div></div></div>
+        <div class="col-xl-6"><div class="card-panel p-3 massive-chart-card"><div id="deltaBar" style="height:430px"></div></div></div>
+        <div class="col-xl-6"><div class="card-panel p-3 massive-chart-card"><div id="typeHeatmap" style="height:450px"></div></div></div>
+        <div class="col-xl-6"><div class="card-panel p-3 massive-chart-card"><div id="runtimePlot" style="height:450px"></div></div></div>
+        <div class="col-xl-6"><div class="card-panel p-3 massive-chart-card"><div id="tradeoffPlot" style="height:450px"></div></div></div>
+        <div class="col-xl-6"><div class="card-panel p-3 massive-chart-card"><div id="winRatePlot" style="height:450px"></div></div></div>
+    </div>
+</section>
+
+<section class="mt-4 card-panel p-3 p-lg-4 massive-wide">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="h5 fw-bold mb-0">Failure cases</h2>
+        <span class="text-secondary small">низкие метрики и отрицательный delta</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle">
+            <thead>
+            <tr>
+                <th>dataset</th>
+                <th>type</th>
+                <th>best</th>
+                <th>worst</th>
+                <th>best NMI</th>
+                <th>delta</th>
+                <th>possible reason</th>
+            </tr>
+            </thead>
+            <tbody id="failureBody">
+            <tr><td colspan="7" class="text-secondary">Loading</td></tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script>
+let payload = null;
+
+function numeric(v) {
+    const x = Number(v);
+    return Number.isFinite(x) ? x : null;
+}
+
+function unique(values) {
+    return Array.from(new Set(values.filter(Boolean))).sort();
+}
+
+function mean(values) {
+    const xs = values.map(numeric).filter(v => v !== null);
+    return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null;
+}
+
+function filteredRows() {
+    const split = document.getElementById("splitFilter").value;
+    const dtype = document.getElementById("typeFilter").value;
+    const family = document.getElementById("familyFilter").value;
+    const size = document.getElementById("sizeFilter").value;
+    const maxNRaw = document.getElementById("maxNFilter").value;
+    const maxN = maxNRaw ? Number(maxNRaw) : null;
+    return (payload?.benchmark_rows || []).filter(row => {
+        if (row.status !== "ok") return false;
+        if (split !== "all" && row.split !== split) return false;
+        if (dtype !== "all" && row.dataset_type !== dtype) return false;
+        if (family !== "all" && row.algorithm_family !== family) return false;
+        if (size !== "all" && row.size_profile !== size) return false;
+        if (maxN !== null && Number(row.n_samples) > maxN) return false;
+        return true;
+    });
+}
+
+function algorithmLabel(row) {
+    const bits = [row.algorithm];
+    if (row.variant && row.variant !== "default") bits.push(row.variant);
+    if (row.linkage) bits.push(row.linkage);
+    if (row.m) bits.push("m=" + row.m);
+    return bits.join(" / ");
+}
+
+function renderQualityBar(rows, metric) {
+    const grouped = {};
+    rows.forEach(row => {
+        const label = algorithmLabel(row);
+        grouped[label] = grouped[label] || [];
+        grouped[label].push(row[metric]);
+    });
+    const labels = Object.keys(grouped).sort();
+    const values = labels.map(label => mean(grouped[label]));
+    Plotly.newPlot("qualityBar", [{
+        type: "bar",
+        x: labels,
+        y: values,
+        marker: {color: "#222"}
+    }], {
+        title: "Mean " + metric + " by algorithm",
+        margin: {l: 50, r: 20, t: 55, b: 120},
+        yaxis: {range: [0, 1]},
+        xaxis: {tickangle: -35}
+    }, {responsive: true});
+}
+
+function renderDelta(rows, metric) {
+    const byDataset = {};
+    rows.forEach(row => {
+        byDataset[row.dataset_id] = byDataset[row.dataset_id] || [];
+        byDataset[row.dataset_id].push(row);
+    });
+    const deltas = [];
+    Object.entries(byDataset).forEach(([dataset, dsRows]) => {
+        const singles = dsRows.filter(r => r.algorithm_family === "single");
+        const consensus = dsRows.filter(r => r.algorithm_family === "consensus");
+        if (!singles.length || !consensus.length) return;
+        const bestSingle = Math.max(...singles.map(r => numeric(r[metric]) ?? -Infinity));
+        const bestConsensus = Math.max(...consensus.map(r => numeric(r[metric]) ?? -Infinity));
+        if (Number.isFinite(bestSingle) && Number.isFinite(bestConsensus)) {
+            deltas.push({dataset, delta: bestConsensus - bestSingle});
+        }
+    });
+    deltas.sort((a, b) => a.delta - b.delta);
+    Plotly.newPlot("deltaBar", [{
+        type: "bar",
+        x: deltas.map(d => d.dataset),
+        y: deltas.map(d => d.delta),
+        marker: {color: deltas.map(d => d.delta >= 0 ? "#1b7f5c" : "#a43d3d")}
+    }], {
+        title: "Delta " + metric + ": best consensus - best single",
+        margin: {l: 50, r: 20, t: 55, b: 120},
+        xaxis: {tickangle: -35}
+    }, {responsive: true});
+}
+
+function renderHeatmap(rows, metric) {
+    const types = unique(rows.map(r => r.dataset_type));
+    const algorithms = unique(rows.map(algorithmLabel));
+    const z = types.map(dtype => algorithms.map(algo => mean(rows.filter(r => r.dataset_type === dtype && algorithmLabel(r) === algo).map(r => r[metric]))));
+    Plotly.newPlot("typeHeatmap", [{
+        type: "heatmap",
+        x: algorithms,
+        y: types,
+        z: z,
+        colorscale: "Viridis",
+        zmin: 0,
+        zmax: 1
+    }], {
+        title: metric + " by dataset type and algorithm",
+        margin: {l: 110, r: 20, t: 55, b: 120},
+        xaxis: {tickangle: -35}
+    }, {responsive: true});
+}
+
+function renderRuntime(rows) {
+    Plotly.newPlot("runtimePlot", [{
+        type: "scatter",
+        mode: "markers",
+        x: rows.map(r => r.n_samples),
+        y: rows.map(r => r.runtime_sec),
+        text: rows.map(r => `${r.dataset_id}<br>${algorithmLabel(r)}`),
+        marker: {size: 8, color: rows.map(r => r.algorithm_family === "consensus" ? "#222" : "#777")}
+    }], {
+        title: "Runtime vs n_samples",
+        margin: {l: 65, r: 20, t: 55, b: 55},
+        xaxis: {title: "n_samples"},
+        yaxis: {title: "runtime sec", type: "log"}
+    }, {responsive: true});
+}
+
+function renderTradeoff(rows, metric) {
+    Plotly.newPlot("tradeoffPlot", [{
+        type: "scatter",
+        mode: "markers",
+        x: rows.map(r => r.runtime_sec),
+        y: rows.map(r => r[metric]),
+        text: rows.map(r => `${r.dataset_id}<br>${algorithmLabel(r)}`),
+        marker: {size: 8, color: rows.map(r => r.algorithm_family === "consensus" ? "#1b7f5c" : "#5b6470")}
+    }], {
+        title: "Runtime-quality trade-off",
+        margin: {l: 55, r: 20, t: 55, b: 55},
+        xaxis: {title: "runtime sec", type: "log"},
+        yaxis: {title: metric, range: [0, 1]}
+    }, {responsive: true});
+}
+
+function renderWinRate(rows, metric) {
+    const byType = {};
+    rows.forEach(r => {
+        byType[r.dataset_type] = byType[r.dataset_type] || {};
+        byType[r.dataset_type][r.dataset_id] = byType[r.dataset_type][r.dataset_id] || [];
+        byType[r.dataset_type][r.dataset_id].push(r);
+    });
+    const labels = Object.keys(byType).sort();
+    const values = labels.map(dtype => {
+        const wins = Object.values(byType[dtype]).map(dsRows => {
+            const singles = dsRows.filter(r => r.algorithm_family === "single");
+            const consensus = dsRows.filter(r => r.algorithm_family === "consensus");
+            if (!singles.length || !consensus.length) return null;
+            return Math.max(...consensus.map(r => numeric(r[metric]) ?? -Infinity)) > Math.max(...singles.map(r => numeric(r[metric]) ?? -Infinity)) ? 1 : 0;
+        }).filter(v => v !== null);
+        return wins.length ? mean(wins) : null;
+    });
+    Plotly.newPlot("winRatePlot", [{
+        type: "bar",
+        x: labels,
+        y: values,
+        marker: {color: "#222"}
+    }], {
+        title: "Consensus win-rate by dataset type",
+        margin: {l: 50, r: 20, t: 55, b: 90},
+        yaxis: {range: [0, 1]}
+    }, {responsive: true});
+}
+
+function renderFailureTable() {
+    const body = document.getElementById("failureBody");
+    const rows = (payload?.failure_rows || []).slice().sort((a, b) => (numeric(a.consensus_delta_vs_single) ?? 0) - (numeric(b.consensus_delta_vs_single) ?? 0)).slice(0, 30);
+    if (!rows.length) {
+        body.innerHTML = `<tr><td colspan="7" class="text-secondary">Нет данных. Сначала запусти analyze_single_vs_consensus.py.</td></tr>`;
+        return;
+    }
+    body.innerHTML = rows.map(row => `
+        <tr>
+            <td class="small-mono">${row.dataset_id}</td>
+            <td>${row.dataset_type}</td>
+            <td>${row.best_algorithm}</td>
+            <td>${row.worst_algorithm}</td>
+            <td>${Number(row.best_nmi).toFixed(3)}</td>
+            <td>${Number(row.consensus_delta_vs_single).toFixed(3)}</td>
+            <td>${row.possible_reason}</td>
+        </tr>
+    `).join("");
+}
+
+function renderProfile(profile) {
+    const box = document.getElementById("profileBox");
+    if (!profile) {
+        box.innerHTML = `<div class="text-secondary">not selected yet</div>`;
+        return;
+    }
+    const fields = [
+        ["algorithm", profile.algorithm],
+        ["variant", profile.variant],
+        ["selection", profile.selection_strategy],
+        ["linkage", profile.linkage],
+        ["m", profile.m],
+        ["qd alpha", profile.qd_alpha],
+        ["validation NMI", Number(profile.mean_validation_nmi).toFixed(4)],
+        ["runtime", Number(profile.mean_validation_runtime_sec).toFixed(3) + "s"]
+    ];
+    box.innerHTML = fields.map(([key, value]) => `
+        <div class="massive-profile-item">
+            <div class="massive-profile-key">${key}</div>
+            <div class="massive-profile-value" title="${value ?? ""}">${value ?? "—"}</div>
+        </div>
+    `).join("");
+}
+
+function renderAll() {
+    const rows = filteredRows();
+    const metric = document.getElementById("metricFilter").value;
+    renderQualityBar(rows, metric);
+    renderDelta(rows, metric);
+    renderHeatmap(rows, metric);
+    renderRuntime(rows);
+    renderTradeoff(rows, metric);
+    renderWinRate(rows, metric);
+    renderFailureTable();
+}
+
+fetch("/api/single-vs-consensus-json")
+    .then(r => r.json())
+    .then(data => {
+        payload = data;
+        const types = unique((payload.benchmark_rows || []).map(r => r.dataset_type));
+        const typeFilter = document.getElementById("typeFilter");
+        types.forEach(dtype => {
+            const option = document.createElement("option");
+            option.value = dtype;
+            option.textContent = dtype;
+            typeFilter.appendChild(option);
+        });
+        renderProfile(payload.selected_profile);
+        renderAll();
+    });
+
+["splitFilter", "metricFilter", "typeFilter", "familyFilter", "sizeFilter", "maxNFilter"].forEach(id => {
+    document.getElementById(id).addEventListener("input", renderAll);
+});
+</script>
+{% endblock %}

@@ -3,62 +3,319 @@
 {% block content %}
 <section class="page-hero">
     <div class="page-kicker">Страница датасетов</div>
-    <h1 class="display-5 fw-bold mb-3">Загрузка и просмотр наборов данных</h1>
-    <p class="lead text-secondary mb-0">Здесь можно добавить собственный датасет в систему и посмотреть характеристики всех доступных наборов.</p>
+    <h1 class="display-5 fw-bold mb-1">Загрузка и просмотр наборов данных</h1>
+    <p class="lead text-secondary mb-0">Добавьте датасет и просмотрите характеристики доступных наборов. Форматы: <span class="small-mono">.npz .mat .csv .tsv .txt .json</span>. Нужны <span class="small-mono">X</span>&nbsp;и&nbsp;<span class="small-mono">gt</span> или <span class="small-mono">members</span>&nbsp;и&nbsp;<span class="small-mono">gt</span>.</p>
 </section>
 
-<section class="row g-4 mt-1">
-    <div class="col-lg-4">
-        <div class="card-panel p-4">
-            <h2 class="h4 mb-3">Загрузка файла</h2>
-            <p class="section-note">Поддерживаются файлы форматов <span class="small-mono">.npz</span> и <span class="small-mono">.mat</span>. Для корректной работы внутри должны быть как минимум <span class="small-mono">members</span> и <span class="small-mono">gt</span>.</p>
+<div class="d-flex gap-2 mb-0" style="flex:0 0 auto;">
+    <a href="{{ url_for('datasets_page') }}" class="nav-pill active" style="font-size:.83rem;">📁 Датасеты</a>
+    <a href="{{ url_for('generate_page') }}" class="nav-pill" style="font-size:.83rem;">⚙️ Генерация</a>
+    <a href="{{ url_for('assistant_page') }}" class="nav-pill" style="font-size:.83rem;">🤖 ИИ-анализ</a>
+</div>
+
+<section class="row g-3" style="flex:1 1 auto;min-height:0;overflow:hidden;">
+    <div class="col-lg-4 d-flex flex-column" style="min-height:0;">
+        <div class="card-panel p-3 d-flex flex-column" style="flex:1;min-height:0;overflow-y:auto;">
+            <h2 class="h5 mb-2">Загрузка файла</h2>
+            {% if demo_mode %}
+            <div class="alert alert-warning py-2 px-3 mb-2">В публичной демонстрационной версии загрузка новых датасетов отключена.</div>
+            {% endif %}
             <form method="post" enctype="multipart/form-data">
-                <div class="mb-3">
+                <div class="mb-2">
                     <label class="form-label">Файл датасета</label>
-                    <input class="form-control" type="file" name="dataset_file" accept=".npz,.mat" required>
+                    <input class="form-control form-control-sm" type="file" name="dataset_file" accept=".npz,.mat,.csv,.tsv,.txt,.json" required {% if demo_mode %}disabled{% endif %}>
                 </div>
-                <button class="btn btn-primary w-100">Загрузить датасет</button>
+                <div class="tab-caption mb-2" style="font-size:.8rem;">Для обычного датасета (только <span class="small-mono">X</span> и <span class="small-mono">gt</span>) — параметры построения ансамбля:</div>
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label class="form-label">Базовых кластеризаций</label>
+                        <input class="form-control form-control-sm" name="upload_base_clusterings" type="number" value="30" min="1" {% if demo_mode %}disabled{% endif %}>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Метод ансамбля</label>
+                        <select class="form-select form-select-sm" name="upload_base_strategy" {% if demo_mode %}disabled{% endif %}>
+                            <option value="mixed">mixed</option>
+                            <option value="kmeans">kmeans</option>
+                            <option value="hierarchical">hierarchical</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Минимальное k</label>
+                        <input class="form-control form-control-sm" name="upload_base_k_min" type="number" value="2" min="2" {% if demo_mode %}disabled{% endif %}>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Максимальное k</label>
+                        <input class="form-control form-control-sm" name="upload_base_k_max" type="number" value="8" min="2" {% if demo_mode %}disabled{% endif %}>
+                    </div>
+                </div>
+                <button class="btn btn-primary btn-sm w-100">Загрузить датасет</button>
             </form>
             {% if upload_message %}
-            <div class="alert alert-info mt-3 mb-0">{{ upload_message }}</div>
+            <div class="alert alert-info mt-2 mb-0 py-2 px-3">{{ upload_message }}</div>
             {% endif %}
         </div>
     </div>
-    <div class="col-lg-8">
-        <div class="card-panel p-4">
-            <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
-                <h2 class="h4 mb-0">Доступные датасеты</h2>
-                <div class="text-secondary">Всего: {{ dataset_count }}</div>
+
+    <div class="col-lg-8 d-flex flex-column" style="min-height:0;">
+        <div class="card-panel p-3 d-flex flex-column" style="flex:1;min-height:0;">
+
+            <!-- Список датасетов -->
+            <div id="datasets-view" class="d-flex flex-column" style="flex:1;min-height:0;">
+                <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
+                    <h2 class="h5 mb-0">Доступные датасеты</h2>
+                    <div class="text-secondary" style="font-size:.85rem;">Всего: {{ dataset_count }}</div>
+                </div>
+                <div class="row g-2" style="overflow-y:auto;flex:1;min-height:0;align-content:flex-start;">
+                    {% for ds in datasets %}
+                    <div class="col-md-6">
+                        <div class="list-card">
+                            <div class="fw-bold mb-1" style="font-size:.9rem;">{{ ds.name }}</div>
+                            <div class="section-note mb-1" style="font-size:.8rem;">{{ ds.suffix }}, {{ ds.size_kb }} KB</div>
+                            {% if ds.members_shape %}<div style="font-size:.82rem;">members: <span class="small-mono">{{ ds.members_shape }}</span></div>{% endif %}
+                            {% if ds.x_shape %}<div style="font-size:.82rem;">X: <span class="small-mono">{{ ds.x_shape }}</span></div>{% endif %}
+                            {% if ds.gt_shape %}<div style="font-size:.82rem;">gt: <span class="small-mono">{{ ds.gt_shape }}</span></div>{% endif %}
+                            {% if ds.n_classes %}<div style="font-size:.82rem;">Классов: <span class="small-mono">{{ ds.n_classes }}</span></div>{% endif %}
+                            <a href="{{ url_for('test_page') }}?dataset={{ ds.name.rsplit('.', 1)[0] }}" class="btn btn-sm btn-primary mt-2 me-1">→ Тест</a>
+                            <button class="btn btn-outline-dark btn-sm mt-2 ai-agent-btn" type="button" data-dataset="{{ ds.name.rsplit('.', 1)[0] }}">ИИ-анализ</button>
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="col-12">
+                        <div class="list-card">
+                            <div class="section-note">Пока датасетов нет. Можно загрузить файл или перейти на страницу генерации синтетических данных.</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
             </div>
-            <div class="row g-3">
-                {% for ds in datasets %}
-                <div class="col-md-6">
-                    <div class="list-card h-100">
-                        <div class="fw-bold mb-2">{{ ds.name }}</div>
-                        <div class="section-note mb-2">{{ ds.suffix }}, {{ ds.size_kb }} KB</div>
-                        {% if ds.members_shape %}
-                        <div>members: <span class="small-mono">{{ ds.members_shape }}</span></div>
-                        {% endif %}
-                        {% if ds.x_shape %}
-                        <div>X: <span class="small-mono">{{ ds.x_shape }}</span></div>
-                        {% endif %}
-                        {% if ds.gt_shape %}
-                        <div>gt: <span class="small-mono">{{ ds.gt_shape }}</span></div>
-                        {% endif %}
-                        {% if ds.n_classes %}
-                        <div>Число классов: <span class="small-mono">{{ ds.n_classes }}</span></div>
-                        {% endif %}
+
+            <!-- ИИ-анализ (переключается вместо списка) -->
+            <div id="ai-agent-view" class="d-flex flex-column" style="flex:1;min-height:0;display:none;">
+                <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
+                    <div>
+                        <div class="page-kicker mb-1">ИИ-агент интерпретации</div>
+                        <h2 class="h5 mb-0" id="ai-agent-title">Анализ датасета</h2>
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm" type="button" id="ai-agent-close">← Назад</button>
+                </div>
+                <div class="row g-2" style="overflow-y:auto;flex:1;min-height:0;align-content:flex-start;">
+
+                    <!-- Grok explanation (full width, top) -->
+                    <div class="col-12" id="grok-block" style="display:none;">
+                        <div class="list-card" style="border-left:3px solid #7c4dff;">
+                            <div class="d-flex align-items-center gap-2 mb-2">
+                                <span style="font-size:.85rem;font-weight:600;">🤖 Grok AI — объяснение</span>
+                                <span class="badge" style="background:#7c4dff;font-size:.7rem;">LLM</span>
+                            </div>
+                            <div style="font-size:.84rem;white-space:pre-wrap;line-height:1.55;" id="grok-text"></div>
+                        </div>
+                    </div>
+
+                    <!-- Smart recommendation: best algorithm + SDGCA params -->
+                    <div class="col-lg-5">
+                        <div class="list-card">
+                            <div class="fw-bold mb-2" style="font-size:.85rem;">Рекомендация алгоритма</div>
+                            <div id="smart-best-algo" class="mb-2" style="font-size:.84rem;"></div>
+                            <div class="fw-bold mb-1" style="font-size:.83rem;">Параметры SDGCA (умный подбор)</div>
+                            <pre class="small-mono mb-1" style="font-size:.78rem;" id="smart-sdgca-params"></pre>
+                            <div style="font-size:.78rem;color:#888;" id="smart-paper-match"></div>
+                        </div>
+                    </div>
+
+                    <!-- Algorithm ranking -->
+                    <div class="col-lg-7">
+                        <div class="list-card">
+                            <div class="fw-bold mb-2" style="font-size:.85rem;">Ранжирование алгоритмов</div>
+                            <div id="smart-ranking" style="font-size:.82rem;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Local agent summary + params -->
+                    <div class="col-lg-5">
+                        <div class="list-card">
+                            <div class="fw-bold mb-1" style="font-size:.85rem;">Краткий вывод (локальный агент)</div>
+                            <div class="section-note" style="font-size:.83rem;" id="ai-agent-summary"></div>
+                        </div>
+                    </div>
+                    <div class="col-lg-7">
+                        <div class="list-card">
+                            <div class="fw-bold mb-1" style="font-size:.85rem;">Рекомендованные параметры</div>
+                            <pre class="small-mono mb-0" style="font-size:.78rem;" id="ai-agent-params"></pre>
+                        </div>
+                    </div>
+
+                    <!-- Findings + warnings -->
+                    <div class="col-lg-6">
+                        <div class="list-card">
+                            <div class="fw-bold mb-1" style="font-size:.85rem;">Что агент увидел</div>
+                            <ul class="section-note mb-0" style="font-size:.83rem;" id="ai-agent-findings"></ul>
+                        </div>
+                    </div>
+                    <div class="col-lg-6">
+                        <div class="list-card">
+                            <div class="fw-bold mb-1" style="font-size:.85rem;">Предупреждения</div>
+                            <ul class="section-note mb-0" style="font-size:.83rem;" id="ai-agent-warnings"></ul>
+                        </div>
+                    </div>
+
+                    <!-- Evidence metrics -->
+                    <div class="col-12">
+                        <div class="list-card">
+                            <div class="fw-bold mb-1" style="font-size:.85rem;">Метрики, на которые опирался агент</div>
+                            <pre class="small-mono mb-1" style="font-size:.78rem;" id="ai-agent-evidence"></pre>
+                            <div class="section-note" style="font-size:.83rem;" id="ai-agent-note"></div>
+                        </div>
                     </div>
                 </div>
-                {% else %}
-                <div class="col-12">
-                    <div class="list-card">
-                        <div class="section-note">Пока датасетов нет. Можно загрузить файл или перейти на страницу генерации синтетических данных.</div>
-                    </div>
-                </div>
-                {% endfor %}
             </div>
+
         </div>
     </div>
 </section>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const datasetsView = document.getElementById("datasets-view");
+    const aiView = document.getElementById("ai-agent-view");
+    const title = document.getElementById("ai-agent-title");
+    const summary = document.getElementById("ai-agent-summary");
+    const params = document.getElementById("ai-agent-params");
+    const findings = document.getElementById("ai-agent-findings");
+    const warnings = document.getElementById("ai-agent-warnings");
+    const evidence = document.getElementById("ai-agent-evidence");
+    const note = document.getElementById("ai-agent-note");
+
+    // Smart rec elements
+    const grokBlock       = document.getElementById("grok-block");
+    const grokText        = document.getElementById("grok-text");
+    const smartBestAlgo   = document.getElementById("smart-best-algo");
+    const smartSdgcaParams= document.getElementById("smart-sdgca-params");
+    const smartPaperMatch = document.getElementById("smart-paper-match");
+    const smartRanking    = document.getElementById("smart-ranking");
+
+    function showAI() {
+        datasetsView.style.display = "none";
+        aiView.style.display = "flex";
+    }
+    function showDatasets() {
+        aiView.style.display = "none";
+        datasetsView.style.display = "flex";
+    }
+
+    function fillList(node, items, emptyText) {
+        node.innerHTML = "";
+        const values = items && items.length ? items : [emptyText];
+        values.forEach((item) => {
+            const li = document.createElement("li");
+            li.textContent = item;
+            node.appendChild(li);
+        });
+    }
+
+    function renderSmartRec(smartRec) {
+        if (!smartRec) return;
+
+        // Best algorithm badge
+        const bestLabel = smartRec.best_algorithm_label || smartRec.best_algorithm || "—";
+        smartBestAlgo.innerHTML =
+            `<span style="display:inline-block;background:#e8f5e9;border:1px solid #4caf50;` +
+            `border-radius:4px;padding:3px 10px;font-weight:600;color:#2e7d32;">` +
+            `✓ ${bestLabel}</span>` +
+            `<div style="margin-top:6px;color:#555;font-size:.8rem;">` +
+            (smartRec.reasoning || []).map(r => `• ${r}`).join("<br>") +
+            `</div>`;
+
+        // SDGCA params
+        const sp = smartRec.sdgca_params || {};
+        smartSdgcaParams.textContent =
+            `lambda (λ) = ${sp.lam ?? "?"}\n` +
+            `eta   (η)  = ${sp.eta ?? "?"}\n` +
+            `theta (θ)  = ${sp.theta ?? "?"}`;
+
+        // Nearest paper match
+        const top = (smartRec.paper_matches || [])[0];
+        if (top) {
+            smartPaperMatch.textContent =
+                `Эталон из статьи: ${top.reference_dataset} ` +
+                `(n=${top.ref_n}, K=${top.ref_K}, d=${top.ref_d}, dist=${top.distance})`;
+        }
+
+        // Algorithm ranking table
+        const ranking = smartRec.algorithm_ranking || [];
+        if (ranking.length) {
+            const rows = ranking.map((r, i) => {
+                const bar = Math.round((r.score / (ranking[0].score || 1)) * 100);
+                const color = i === 0 ? "#4caf50" : i === 1 ? "#2196f3" : "#9e9e9e";
+                return `<div style="margin-bottom:8px;">` +
+                    `<div style="display:flex;align-items:center;gap:8px;">` +
+                    `<span style="min-width:20px;font-weight:600;color:${color};">${i+1}.</span>` +
+                    `<span style="flex:1;font-weight:${i===0?'600':'400'};">${r.label}</span>` +
+                    `<span style="color:#666;font-size:.78rem;">score: ${r.score}</span>` +
+                    `</div>` +
+                    `<div style="height:4px;border-radius:2px;background:#f0f0f0;margin:2px 0 0 28px;">` +
+                    `<div style="height:4px;border-radius:2px;background:${color};width:${bar}%;"></div>` +
+                    `</div>` +
+                    (r.reasons && r.reasons.length ?
+                        `<div style="color:#777;font-size:.77rem;margin-left:28px;">` +
+                        r.reasons.slice(0, 2).join(" • ") + `</div>` : "") +
+                    `</div>`;
+            }).join("");
+            smartRanking.innerHTML = rows;
+        }
+    }
+
+    document.querySelectorAll(".ai-agent-btn").forEach((button) => {
+        button.addEventListener("click", async () => {
+            const dataset = button.dataset.dataset;
+            showAI();
+            title.textContent = `Анализ: ${dataset}`;
+            summary.textContent = "Агент считает диагностику... (Grok LLM запрашивается)";
+            params.textContent = "";
+            findings.innerHTML = "";
+            warnings.innerHTML = "";
+            evidence.textContent = "";
+            note.textContent = "";
+            grokBlock.style.display = "none";
+            grokText.textContent = "";
+            smartBestAlgo.innerHTML = "";
+            smartSdgcaParams.textContent = "";
+            smartPaperMatch.textContent = "";
+            smartRanking.innerHTML = "";
+
+            try {
+                const response = await fetch(`/api/ai-agent/dataset/${encodeURIComponent(dataset)}`);
+                const payload = await response.json();
+                if (!response.ok || payload.error) throw new Error(payload.error || "AI agent request failed");
+
+                // Local rule-based agent
+                const agent = payload.agent;
+                summary.textContent = agent.summary || "Нет краткого вывода.";
+                params.textContent = JSON.stringify(agent.recommended_parameters || {}, null, 2);
+                fillList(findings, agent.findings, "Нет дополнительных наблюдений.");
+                fillList(warnings, agent.warnings, "Критичных предупреждений нет.");
+                evidence.textContent = JSON.stringify(agent.evidence || {}, null, 2);
+                note.textContent = agent.protocol_note || "";
+
+                // Smart recommendation (PAPER_GRID nearest-neighbor)
+                renderSmartRec(payload.smart_rec);
+
+                // Grok LLM explanation
+                if (payload.grok_explanation) {
+                    grokText.textContent = payload.grok_explanation;
+                    grokBlock.style.display = "block";
+                } else if (payload.grok_error) {
+                    grokText.textContent = `⚠ Grok недоступен: ${payload.grok_error}`;
+                    grokBlock.style.display = "block";
+                    grokBlock.querySelector(".list-card").style.borderColor = "#ff9800";
+                }
+
+            } catch (error) {
+                summary.textContent = `Ошибка: ${error.message}`;
+            }
+        });
+    });
+
+    document.getElementById("ai-agent-close").addEventListener("click", showDatasets);
+});
+</script>
 {% endblock %}

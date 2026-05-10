@@ -1,0 +1,86 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "consensus-lab"
+version = "0.1.0"
+description = "Система тестирования алгоритмов консенсус-кластеризации (ВКР, 2026)."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Tikhonov" },
+]
+keywords = [
+    "consensus-clustering",
+    "ensemble-clustering",
+    "co-association-matrix",
+    "sdgca",
+    "hierarchical-clustering",
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "Flask>=3.0,<4.0",
+    "Werkzeug>=3.0,<4.0",
+    "numpy>=1.26,<3.0",
+    "scipy>=1.11,<2.0",
+    "scikit-learn>=1.3",
+    "groq>=1.2,<2.0",
+    "python-dotenv>=1.0,<2.0",
+    "gunicorn>=23.0,<24.0",
+    "psycopg[binary]>=3.2,<4.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.5",
+]
+
+[project.urls]
+"Source" = "https://github.com/"
+
+# Тесты лежат в tests/, ядро — в consensus_lab/. Пакет не публикуется
+# в PyPI; pyproject.toml нужен для современного инструментария
+# (`pip install -e .`, ruff, CI), а не для дистрибуции.
+[tool.setuptools]
+py-modules = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra -q"
+filterwarnings = [
+    # Ward-агрегация на 1-CA — это дизайн-выбор алгоритма, предупреждение
+    # ожидаемое и осознанное (см. hierarchical_consensus.get_cls_result).
+    "ignore::RuntimeWarning",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+exclude = [
+    ".venv",
+    "__pycache__",
+    "results",
+    "datasets",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "E501",  # длина строки контролируется чёрным списком
+    "B008",  # default factory args в click/argparse
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
