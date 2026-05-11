@@ -117,15 +117,23 @@ def compute_d(bcs: np.ndarray, base_cls_segs: np.ndarray, tau: float=0.8) -> np.
     return d
 
 def compute_s(nwca: np.ndarray, mla: np.ndarray) -> np.ndarray:
-    ml = nwca.copy()
-    ml[mla == 0] = 0.0
-    min_value = float(np.min(ml))
-    ml = ml - min_value
-    max_value = float(np.max(ml))
-    if max_value > 0:
-        ml = ml / max_value
-    ml = ml / 5.0 + 0.8
-    ml[ml == 0.8] = 0.0
+    # Mask of "must-link candidate" cells (mla>0). Outside the mask we
+    # always return 0. Inside, we rescale nwca to [0.8, 1.0]. The previous
+    # implementation relied on a floating-point equality check
+    # (ml == 0.8) to re-zero masked cells, which is fragile and could
+    # accidentally re-zero genuine values that landed exactly on 0.8.
+    keep = mla > 0
+    ml = np.zeros_like(nwca, dtype=np.float64)
+    if not np.any(keep):
+        return ml
+    values = nwca[keep]
+    lo = float(np.min(values))
+    span = float(np.max(values) - lo)
+    if span > 0:
+        values = (values - lo) / span
+    else:
+        values = np.zeros_like(values)
+    ml[keep] = values / 5.0 + 0.8
     return ml
 
 def optimize_sdgca(l_matrix: np.ndarray, ml: np.ndarray, cl: np.ndarray, max_iter: int=120, tol: float=1e-3) -> Tuple[np.ndarray, np.ndarray]:
@@ -140,14 +148,14 @@ def optimize_sdgca(l_matrix: np.ndarray, ml: np.ndarray, cl: np.ndarray, max_ite
     y2 = np.zeros((n, n), dtype=np.float64)
     f1 = np.zeros((n, n), dtype=np.float64)
     f2 = np.zeros((n, n), dtype=np.float64)
-    chol1 = None
-    chol2 = None
-    refactor_every = 4
+    # mu1 and mu2 change every iteration, so the Cholesky factor must be
+    # refreshed every iteration too. The previous code re-used a stale
+    # factor for several iterations after mu was grown, which silently
+    # solved the wrong linear system. We refactor every step.
     for it in range(max_iter):
         s_prev = s.copy()
         d_prev = d.copy()
-        if chol1 is None or it % refactor_every == 0:
-            chol1 = cho_factor(2.0 * l_sym + 2.0 * mu1 * identity, lower=False, overwrite_a=False, check_finite=False)
+        chol1 = cho_factor(2.0 * l_sym + 2.0 * mu1 * identity, lower=False, overwrite_a=False, check_finite=False)
         rhs_s = 2.0 * mu1 * f1 - d - y1
         s = cho_solve(chol1, rhs_s, overwrite_b=False, check_finite=False)
         s = (s + s.T) / 2.0
@@ -156,8 +164,7 @@ def optimize_sdgca(l_matrix: np.ndarray, ml: np.ndarray, cl: np.ndarray, max_ite
         np.clip(f1, 0.0, 1.0, out=f1)
         f1 = f1 + ml
         f1 = (f1 + f1.T) / 2.0
-        if chol2 is None or it % refactor_every == 0:
-            chol2 = cho_factor(2.0 * l_sym + 2.0 * mu2 * identity, lower=False, overwrite_a=False, check_finite=False)
+        chol2 = cho_factor(2.0 * l_sym + 2.0 * mu2 * identity, lower=False, overwrite_a=False, check_finite=False)
         rhs_d = 2.0 * mu2 * f2 - s - y2
         d = cho_solve(chol2, rhs_d, overwrite_b=False, check_finite=False)
         d = (d + d.T) / 2.0

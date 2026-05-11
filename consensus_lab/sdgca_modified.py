@@ -60,12 +60,54 @@ def compute_fuzzy_entropy_weights(base_cls: np.ndarray, x: np.ndarray | None, pa
     return fuzzy_weights
 
 def compute_partition_agreements(base_cls: np.ndarray) -> np.ndarray:
-    from metrics import compute_nmi
+    """Pairwise NMI (arithmetic-normalised) averaged per partition.
+
+    The previous implementation called sklearn's normalized_mutual_info_score
+    O(m^2) times — every call re-built a contingency table from raw labels
+    and re-computed entropies. For m=40 this dominated SDGCA-modified runtime.
+    Here we cache (label inverse, marginal entropy) once per partition and
+    compute every pair's mutual information from a single np.add.at call.
+    """
     n, m = base_cls.shape
+    if m == 1:
+        return np.ones(1, dtype=np.float64)
+    inverses: list[np.ndarray] = []
+    sizes: list[int] = []
+    entropies: list[float] = []
+    for j in range(m):
+        _, inv = np.unique(base_cls[:, j], return_inverse=True)
+        k = int(inv.max()) + 1
+        counts = np.bincount(inv, minlength=k).astype(np.float64)
+        probs = counts[counts > 0] / n
+        h = float(-(probs * np.log(probs)).sum())
+        inverses.append(inv.astype(np.int64))
+        sizes.append(k)
+        entropies.append(h)
     pairwise = np.zeros((m, m), dtype=np.float64)
     for j in range(m):
+        inv_j = inverses[j]
+        kj = sizes[j]
+        hj = entropies[j]
         for k in range(j + 1, m):
-            v = compute_nmi(base_cls[:, j], base_cls[:, k])
+            inv_k = inverses[k]
+            kk = sizes[k]
+            hk = entropies[k]
+            denom = (hj + hk) / 2.0
+            if denom <= 0.0:
+                v = 0.0
+            else:
+                cont = np.zeros((kj, kk), dtype=np.float64)
+                np.add.at(cont, (inv_j, inv_k), 1)
+                cont /= n
+                row = cont.sum(axis=1)
+                col = cont.sum(axis=0)
+                nz = cont > 0
+                if not nz.any():
+                    v = 0.0
+                else:
+                    outer = np.outer(row, col)
+                    mi = float((cont[nz] * (np.log(cont[nz]) - np.log(outer[nz]))).sum())
+                    v = max(0.0, min(1.0, mi / denom))
             pairwise[j, k] = v
             pairwise[k, j] = v
     agreements = pairwise.sum(axis=1) / max(m - 1, 1)

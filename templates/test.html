@@ -326,6 +326,66 @@
         cmpBody.innerHTML = '';
         cmpMeta.textContent = '—';
     });
+
+    // Apply pending params forwarded from AI widget on another page
+    (function () {
+        var pendingStr;
+        try { pendingStr = sessionStorage.getItem('ai_pending_params'); } catch (e) {}
+        if (!pendingStr) return;
+        try {
+            sessionStorage.removeItem('ai_pending_params');
+            var pending = JSON.parse(pendingStr);
+            if (pending.m && mI) mI.value = pending.m;
+            if (pending.algorithm) {
+                document.querySelectorAll('.algo-check').forEach(function (c) {
+                    c.checked = c.value === pending.algorithm;
+                });
+            }
+            if (pending.dataset && dsSel) {
+                for (var i = 0; i < dsSel.options.length; i++) {
+                    if (dsSel.options[i].value === pending.dataset) {
+                        dsSel.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+        } catch (e) {}
+    })();
+
+    // Apply AI recommendations when a dataset is selected.
+    async function applyAIRecommendations(name, opts) {
+        opts = opts || {};
+        if (!name) return;
+        try {
+            var resp = await fetch('/api/dataset-analysis/' + encodeURIComponent(name));
+            if (!resp.ok) return;
+            var data = await resp.json();
+            var rec = data.recommendations || {};
+            if (rec.m && mI && (!opts.preserve || !mI.dataset.userTouched)) mI.value = rec.m;
+            if (cmpMeta) {
+                var algo  = (rec.warnings && rec.warnings.length) ? 'sdgca_modified' : 'hierarchical_weighted';
+                var label = ({hierarchical_baseline:'Иерархическая базовая', hierarchical_weighted:'Иерархическая взвешенная',
+                              sdgca:'SDGCA', sdgca_modified:'SDGCA модифицированный'})[algo] || algo;
+                cmpMeta.textContent = 'AI рекомендует: ' + label + ' · m=' + (rec.m || '—');
+                cmpMeta.style.color = 'var(--ink)';
+            }
+        } catch (e) { /* silent — AI is optional */ }
+    }
+    [mI, seedI, runsI].forEach(function (el) {
+        if (el) el.addEventListener('input', function () { el.dataset.userTouched = '1'; });
+    });
+
+    if (dsSel) {
+        dsSel.addEventListener('change', function () {
+            if (window.aiWidget) window.aiWidget.setDataset(dsSel.value);
+            applyAIRecommendations(dsSel.value);
+        });
+        // Initial load — if a dataset is preselected (from URL or first option), fetch recs.
+        if (dsSel.value) {
+            applyAIRecommendations(dsSel.value, { preserve: true });
+            if (window.aiWidget) window.aiWidget.setDataset(dsSel.value);
+        }
+    }
 })();
 </script>
 {% endblock %}

@@ -468,6 +468,7 @@
     'use strict';
     var SK = 'ai_widget_v3', MAX_H = 12;
     var chatHistory = [], currentDataset = '', isOpen = false;
+    var _pendingParams = {}, _pendingId = 0;
 
     var E = {
         btn:   document.getElementById('aiw-btn'),
@@ -514,6 +515,8 @@
     }
 
     function renderParams(params) {
+        var pid = ++_pendingId;
+        _pendingParams[pid] = params;
         var label = ALGO_LABELS[params.algorithm] || params.algorithm || '—';
         var chips = [
             params.m        ? 'm='        + params.m        : null,
@@ -528,10 +531,46 @@
             '<div style="font-weight:700; font-size:.8rem; margin-bottom:.3rem;">Рекомендуемые параметры</div>' +
             '<div style="font-size:.8rem; margin-bottom:.3rem;">Алгоритм: <strong>' + esc(label) + '</strong></div>' +
             '<div>' + chips.map(function (c) { return '<span class="aiw-chip">' + esc(c) + '</span>'; }).join('') + '</div>' +
-            '<a href="' + esc(link) + '" style="display:inline-block; margin-top:.42rem; font-size:.78rem; font-weight:700; color:var(--ink); text-decoration:underline;">Открыть эксперимент</a>';
+            '<div style="display:flex; gap:.4rem; margin-top:.42rem; align-items:center;">' +
+            '<button type="button" class="aiw-apply-btn" data-pid="' + pid + '" style="font-size:.78rem; font-weight:700; color:#fff; background:var(--ink); border:none; border-radius:8px; padding:.3rem .75rem; cursor:pointer; line-height:1.3;">Применить</button>' +
+            '<a href="' + esc(link) + '" style="font-size:.78rem; font-weight:700; color:var(--ink); text-decoration:underline;">Открыть эксперимент</a>' +
+            '</div>';
+        var applyBtn = d.querySelector('.aiw-apply-btn');
+        if (applyBtn) {
+            applyBtn.addEventListener('click', function () {
+                applyParams(_pendingParams[this.dataset.pid]);
+            });
+        }
         E.msgs.appendChild(d);
         E.msgs.scrollTop = E.msgs.scrollHeight;
         return d;
+    }
+
+    function applyParams(params) {
+        if (!params) return;
+        var dsSel = document.getElementById('datasetSelect');
+        var mInput = document.getElementById('m');
+        if (dsSel && mInput) {
+            if (params.dataset) {
+                for (var i = 0; i < dsSel.options.length; i++) {
+                    if (dsSel.options[i].value === params.dataset) {
+                        dsSel.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+            if (params.m) mInput.value = params.m;
+            if (params.algorithm) {
+                document.querySelectorAll('.algo-check').forEach(function (c) {
+                    c.checked = c.value === params.algorithm;
+                });
+            }
+            close();
+        } else {
+            try { sessionStorage.setItem('ai_pending_params', JSON.stringify(params)); } catch (e) {}
+            var url = '/test' + (params.dataset ? '?dataset=' + encodeURIComponent(params.dataset) : '');
+            window.location.href = url;
+        }
     }
 
     function pushHistory(entry) {
@@ -656,6 +695,7 @@
         analyzeDataset: analyzeDataset,
         sendMessage: sendMsg,
         setDataset: function (n) { currentDataset = n; save(); },
+        applyParams: applyParams,
     };
 
     if (window.AI_AUTOLOAD && window.AI_AUTOLOAD.dataset) {

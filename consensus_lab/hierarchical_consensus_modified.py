@@ -54,7 +54,7 @@ def run_weighted_hierarchical_consensus(dataset_path: str | Path, data_name: str
         consensus, weights = build_weighted_consensus_matrix(base_cls, sharpen=sharpen)
         weight_bank.append(weights)
         return consensus
-    result = run_consensus_loop(dataset_path, _build, data_name=data_name, seed=seed, m=m, cnt_times=cnt_times, method=method, selection_strategy=selection_strategy, qd_alpha=qd_alpha)
+    result = run_consensus_loop(dataset_path, _build, data_name=data_name, seed=seed, m=m, cnt_times=cnt_times, method=method, selection_strategy=selection_strategy, qd_alpha=qd_alpha, clamp_m_name='hierarchical_weighted')
     result['sharpen'] = float(sharpen)
     result['avg_weights'] = np.mean(np.vstack(weight_bank), axis=0).astype(float).tolist()
     return result

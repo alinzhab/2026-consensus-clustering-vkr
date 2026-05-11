@@ -67,7 +67,14 @@ def validate_members(members: np.ndarray, m: int | None=None) -> np.ndarray:
         raise ValueError('members must contain only finite numeric values')
     if m is not None and (m < 1 or m > members.shape[1]):
         raise ValueError('m must be between 1 and the number of base clusterings')
-    return members.astype(np.int64)
+    members = members.astype(np.int64)
+    # Normalize every column to consecutive 1-based labels. build_coassociation_matrix
+    # and SDGCA index by `labels - 1`, so 0-based or sparse label sets (e.g. {0,2,5})
+    # silently produced wrong consensus matrices.
+    for j in range(members.shape[1]):
+        _, inverse = np.unique(members[:, j], return_inverse=True)
+        members[:, j] = inverse.astype(np.int64) + 1
+    return members
 
 def validate_gt(gt: np.ndarray, n_objects: int | None=None) -> np.ndarray:
     gt = np.asarray(gt).reshape(-1)
@@ -121,7 +128,7 @@ def run_hierarchical_consensus(dataset_path: str | Path, data_name: str | None=N
 
     def _build(base_cls, _gt, _m):
         return build_coassociation_matrix(base_cls)
-    return run_consensus_loop(dataset_path, _build, data_name=data_name, seed=seed, m=m, cnt_times=cnt_times, method=method, selection_strategy=selection_strategy, qd_alpha=qd_alpha)
+    return run_consensus_loop(dataset_path, _build, data_name=data_name, seed=seed, m=m, cnt_times=cnt_times, method=method, selection_strategy=selection_strategy, qd_alpha=qd_alpha, clamp_m_name='hierarchical_baseline')
 
 def main() -> None:
     parser = argparse.ArgumentParser(description='Базовая иерархическая консенсус-кластеризация.')

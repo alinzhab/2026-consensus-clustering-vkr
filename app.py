@@ -105,6 +105,18 @@ def _db_query(sql):
             return conn.execute(sql).fetchall()
 
 
+def _db_query_params(sql, params=()):
+    """SELECT с параметрами (защита от SQL-инъекций)."""
+    with get_db_connection() as conn:
+        if USE_POSTGRES:
+            sql_pg = sql.replace("?", "%s")
+            with conn.cursor() as cur:
+                cur.execute(sql_pg, params)
+                return cur.fetchall()
+        else:
+            return conn.execute(sql, params).fetchall()
+
+
 _CREATE_DATASETS_TABLE = """
 CREATE TABLE IF NOT EXISTS datasets (
     id {pk} PRIMARY KEY,
@@ -603,54 +615,88 @@ def upsert_dataset_record(summary):
         summary.get("error"),
         updated_at,
     )
+    # Remove any record with the same name but a different path to avoid UNIQUE(name) conflict.
+    try:
+        _db_execute(
+            "DELETE FROM datasets WHERE name = %s AND path != %s",
+            (summary["name"], summary["path"]),
+        )
+    except Exception:
+        pass
     _db_execute(_UPSERT_DATASET_SQL, params)
 
 
 def sync_dataset_registry():
-    files = []
-    for suffix in sorted(SUPPORTED_DATASET_SUFFIXES):
-        pattern = f"*{suffix}"
-        files.extend(sorted(DATASETS_DIR.glob(pattern)))
-        files.extend(sorted(UPLOADS_DIR.glob(pattern)))
-    seen = set()
-    for path in files:
-        resolved = path.resolve()
-        if resolved in seen:
-            continue
-        seen.add(resolved)
-        upsert_dataset_record(summarize_dataset(path))
+    try:
+        files = []
+        for suffix in sorted(SUPPORTED_DATASET_SUFFIXES):
+            pattern = f"*{suffix}"
+            files.extend(sorted(DATASETS_DIR.glob(pattern)))
+            files.extend(sorted(UPLOADS_DIR.glob(pattern)))
+        seen = set()
+        for path in files:
+            resolved = path.resolve()
+            if resolved in seen:
+                continue
+            seen.add(resolved)
+            try:
+                upsert_dataset_record(summarize_dataset(path))
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Remove ghost entries — DB rows whose files no longer exist on disk.
+    try:
+        for row in _db_query("SELECT path FROM datasets"):
+            if not Path(row["path"]).exists():
+                try:
+                    _db_execute("DELETE FROM datasets WHERE path = %s", (row["path"],))
+                except Exception:
+                    pass
+    except Exception:
+        pass
 
 
 def list_datasets():
-    sync_dataset_registry()
-    rows = _db_query("""
-        SELECT name, path, suffix, size_kb, source, keys_json, x_shape_json, gt_shape_json,
-               members_shape_json, n_classes, meta_json, error
-        FROM datasets
-        ORDER BY lower(name), name
-    """)
+    try:
+        sync_dataset_registry()
+    except Exception:
+        pass
+    try:
+        rows = _db_query("""
+            SELECT name, path, suffix, size_kb, source, keys_json, x_shape_json, gt_shape_json,
+                   members_shape_json, n_classes, meta_json, error
+            FROM datasets
+            ORDER BY lower(name), name
+        """)
+    except Exception:
+        return []
 
     items = []
     for row in rows:
-        x_shape = _parse_json_field(row["x_shape_json"])
-        gt_shape = _parse_json_field(row["gt_shape_json"])
-        members_shape = _parse_json_field(row["members_shape_json"])
-        items.append(
-            {
-                "name": row["name"],
-                "path": row["path"],
-                "suffix": row["suffix"],
-                "size_kb": row["size_kb"],
-                "source": row["source"],
-                "keys": _parse_json_field(row["keys_json"]),
-                "x_shape": tuple(x_shape) if x_shape else None,
-                "gt_shape": tuple(gt_shape) if gt_shape else None,
-                "members_shape": tuple(members_shape) if members_shape else None,
-                "n_classes": row["n_classes"],
-                "meta": _parse_json_field(row["meta_json"]),
-                "error": row["error"],
-            }
-        )
+        try:
+            x_shape = _parse_json_field(row["x_shape_json"])
+            gt_shape = _parse_json_field(row["gt_shape_json"])
+            members_shape = _parse_json_field(row["members_shape_json"])
+            items.append(
+                {
+                    "name": row["name"],
+                    "path": row["path"],
+                    "suffix": row["suffix"],
+                    "size_kb": row["size_kb"],
+                    "source": row["source"],
+                    "keys": _parse_json_field(row["keys_json"]),
+                    "x_shape": tuple(x_shape) if x_shape else None,
+                    "gt_shape": tuple(gt_shape) if gt_shape else None,
+                    "members_shape": tuple(members_shape) if members_shape else None,
+                    "n_classes": row["n_classes"],
+                    "meta": _parse_json_field(row["meta_json"]),
+                    "error": row["error"],
+                }
+            )
+        except Exception:
+            pass
     return items
 
 
@@ -693,11 +739,17 @@ def _result_params_tuple(payload, result_file_str):
 
 
 def import_existing_results():
-    result_files = sorted(RESULTS_DIR.glob("*.json"))
-    existing = {
-        row["result_file"]
-        for row in _db_query("SELECT result_file FROM results WHERE result_file IS NOT NULL")
-    }
+    try:
+        result_files = sorted(RESULTS_DIR.glob("*.json"))
+    except Exception:
+        return
+    try:
+        existing = {
+            row["result_file"]
+            for row in _db_query("SELECT result_file FROM results WHERE result_file IS NOT NULL")
+        }
+    except Exception:
+        existing = set()
     for path in result_files:
         path_str = str(path)
         if path_str in existing:
@@ -710,39 +762,62 @@ def import_existing_results():
             continue
         if any(not payload.get(f) for f in ("created_at", "dataset", "algorithm")):
             continue
-        _db_execute(
-            _INSERT_RESULT_SQL + "ON CONFLICT(result_file) DO NOTHING",
-            _result_params_tuple(payload, path_str),
-        )
+        try:
+            _db_execute(
+                _INSERT_RESULT_SQL + "ON CONFLICT(result_file) DO NOTHING",
+                _result_params_tuple(payload, path_str),
+            )
+        except Exception:
+            pass
 
 
 def list_results():
-    import_existing_results()
-    rows = _db_query("""
-        SELECT created_at, dataset, algorithm, algorithm_label, method, method_label,
-               seed, m, runs, nmi_mean, nmi_std, ari_mean, ari_std, f_mean, f_std, params_json
-        FROM results
-        ORDER BY created_at DESC
-        LIMIT 50
-    """)
+    try:
+        import_existing_results()
+    except Exception:
+        pass
+    try:
+        rows = _db_query("""
+            SELECT created_at, dataset, algorithm, algorithm_label, method, method_label,
+                   seed, m, runs, nmi_mean, nmi_std, ari_mean, ari_std, f_mean, f_std, params_json
+            FROM results
+            ORDER BY created_at DESC
+            LIMIT 50
+        """)
+    except Exception:
+        return []
     items = []
     for row in rows:
-        payload = dict(row)
-        payload["params"] = _parse_json_field(payload.pop("params_json", None))
-        payload["algorithm_label"] = payload.get("algorithm_label") or ALGORITHM_LABELS.get(payload.get("algorithm"), payload.get("algorithm"))
-        payload["method_label"] = payload.get("method_label") or METHOD_LABELS.get(payload.get("method"), payload.get("method"))
-        items.append(payload)
+        try:
+            payload = dict(row)
+            payload["params"] = _parse_json_field(payload.pop("params_json", None))
+            payload["algorithm_label"] = payload.get("algorithm_label") or ALGORITHM_LABELS.get(payload.get("algorithm"), payload.get("algorithm"))
+            payload["method_label"] = payload.get("method_label") or METHOD_LABELS.get(payload.get("method"), payload.get("method"))
+            items.append(payload)
+        except Exception:
+            pass
     return items
 
 
 def build_base_context(active_page):
-    datasets = list_datasets()
-    results = list_results()
-    runnable_datasets = [
-        dataset
-        for dataset in datasets
-        if dataset.get("members_shape") and dataset.get("suffix") in RUNNABLE_DATASET_SUFFIXES
-    ]
+    try:
+        datasets = list_datasets()
+    except Exception:
+        datasets = []
+    try:
+        results = list_results()
+    except Exception:
+        results = []
+    try:
+        runnable_datasets = [
+            dataset
+            for dataset in datasets
+            if dataset.get("members_shape")
+            and dataset.get("suffix") in RUNNABLE_DATASET_SUFFIXES
+            and Path(dataset["path"]).exists()
+        ]
+    except Exception:
+        runnable_datasets = []
     return {
         "active_page": active_page,
         "datasets": datasets,
@@ -756,15 +831,24 @@ def build_base_context(active_page):
 
 
 def find_dataset_path(dataset_name):
-    candidates = [
-        DATASETS_DIR / f"{dataset_name}.npz",
-        DATASETS_DIR / f"{dataset_name}.mat",
-        UPLOADS_DIR / f"{dataset_name}.npz",
-        UPLOADS_DIR / f"{dataset_name}.mat",
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
+    # 1) DB lookup — хранит точный абсолютный путь (работает для подпапок)
+    for suffix in (".npz", ".mat", ".csv", ".tsv", ".txt", ".json"):
+        rows = _db_query_params(
+            "SELECT path FROM datasets WHERE name = ?",
+            (dataset_name + suffix,),
+        )
+        if rows:
+            p = Path(rows[0]["path"])
+            if p.exists():
+                return p
+
+    # 2) Прямые кандидаты в корневых директориях датасетов
+    for suffix in (".npz", ".mat", ".csv", ".tsv", ".txt", ".json"):
+        for directory in (DATASETS_DIR, UPLOADS_DIR):
+            candidate = directory / f"{dataset_name}{suffix}"
+            if candidate.exists():
+                return candidate
+
     raise FileNotFoundError(f"Dataset not found: {dataset_name}")
 
 
@@ -933,11 +1017,13 @@ def index():
 def datasets_page():
     ensure_dirs()
     upload_message = None
+    upload_dataset_id = None
     if request.method == "POST":
         if DEMO_MODE:
             upload_message = "В демонстрационной версии загрузка датасетов отключена. Для добавления собственных файлов используйте локальный запуск приложения."
             context = build_base_context("data")
             context["upload_message"] = upload_message
+            context["upload_dataset_id"] = None
             return render_template("datasets.html", **context)
         file = request.files.get("dataset_file")
         upload_message = "Файл не выбран."
@@ -952,6 +1038,7 @@ def datasets_page():
                 upsert_dataset_record(summary)
                 if summary.get("members_shape") and summary.get("suffix") in RUNNABLE_DATASET_SUFFIXES:
                     upload_message = f"Датасет {filename} успешно загружен и готов к запуску консенсусных алгоритмов."
+                    upload_dataset_id = target.stem
                 elif summary.get("gt_shape") and (summary.get("x_shape") or summary.get("members_shape")):
                     ready_path, members = build_consensus_ready_dataset(
                         target,
@@ -969,6 +1056,7 @@ def datasets_page():
                             f"Построены базовые кластеризации members {tuple(members.shape)} "
                             f"и сохранена готовая версия {ready_path.name}."
                         )
+                    upload_dataset_id = ready_path.stem
                 else:
                     upload_message = (
                         f"Файл {filename} загружен, но для запуска нужны либо готовое поле members, "
@@ -976,6 +1064,11 @@ def datasets_page():
                     )
     context = build_base_context("data")
     context["upload_message"] = upload_message
+    context["upload_dataset_id"] = upload_dataset_id
+    # Jump to the catalog tab after a successful upload so the new row is visible.
+    if upload_dataset_id:
+        context["active_tab"] = "list"
+        context["newly_added_dataset"] = upload_dataset_id
     return render_template("datasets.html", **context)
 
 
@@ -1021,14 +1114,23 @@ def api_generate_preview():
 
 @app.route("/generate", methods=["GET", "POST"])
 def generate_page():
+    """Generation endpoint. POSTs come from the unified /datasets page;
+    we render datasets.html back so the user stays on a single screen."""
+    from flask import redirect, url_for
     ensure_dirs()
+    if request.method == "GET":
+        # Old direct-link entry point — send users to the unified page.
+        return redirect(url_for("datasets_page") + "#tab-generate")
     generation_result = None
     if request.method == "POST":
         if DEMO_MODE:
             generation_result = {"error": "В демонстрационной версии генерация датасетов отключена. Полная генерация доступна только при локальном запуске приложения."}
             context = build_base_context("data")
             context["generation_result"] = generation_result
-            return render_template("generate.html", **context)
+            context["active_tab"] = "generate"
+            context["upload_message"] = None
+            context["upload_dataset_id"] = None
+            return render_template("datasets.html", **context)
         generator_type = request.form.get("generator_type", "densired")
         dataset_name = request.form.get("dataset_name", "").strip() or f"generated_{generator_type}"
         try:
@@ -1185,7 +1287,14 @@ def generate_page():
             generation_result = {"error": str(exc)}
     context = build_base_context("data")
     context["generation_result"] = generation_result
-    return render_template("generate.html", **context)
+    # On success, jump to the catalog tab so the new dataset is visible immediately.
+    # On error, stay on the generate tab so the user can see what failed.
+    success = bool(generation_result and not generation_result.get("error"))
+    context["active_tab"] = "list" if success else "generate"
+    context["upload_message"] = None
+    context["upload_dataset_id"] = generation_result.get("dataset_id") if success else None
+    context["newly_added_dataset"] = generation_result.get("file") if success else None
+    return render_template("datasets.html", **context)
 
 
 def _extract_algorithm_kwargs(algorithm_name, dataset_name, form):
@@ -1658,12 +1767,6 @@ def api_ai_agent_dataset(dataset_name):
         return jsonify({"error": str(exc)}), 500
 
 
-@app.route("/assistant", methods=["GET"])
-def assistant_page():
-    """AI assistant page with Groq-powered chat."""
-    ensure_dirs()
-    context = build_base_context("assistant")
-    return render_template("assistant.html", **context)
 
 
 @app.route("/api/ai-agent/chat", methods=["POST"])
