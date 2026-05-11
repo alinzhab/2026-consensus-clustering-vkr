@@ -806,6 +806,121 @@ def _optional_float(value):
     return None if value == "" else float(value)
 
 
+_SCENARIO_DIFF_STD = {"easy": 0.40, "medium": 0.70, "hard": 1.10}
+_SCENARIO_DIFF_SEP = {"easy": 5.0,  "medium": 3.5,  "hard": 2.0}
+
+
+def _scenario_xy(scenario, n_samples, n_clusters, dim, difficulty, seed):
+    """Generate X and gt quickly (no base clusterings) for preview."""
+    rng = np.random.default_rng(seed)
+    std = _SCENARIO_DIFF_STD.get(difficulty, 0.70)
+    sep = _SCENARIO_DIFF_SEP.get(difficulty, 3.5)
+    imbalance = 1.0
+    stretch = None
+
+    if scenario == "overlap":
+        std = {"easy": 1.0, "medium": 1.5, "hard": 2.2}.get(difficulty, 1.5)
+        sep = {"easy": 2.5, "medium": 1.8, "hard": 1.2}.get(difficulty, 1.8)
+    elif scenario == "elongated":
+        shape_ratio = {"easy": 3.0, "medium": 7.0, "hard": 14.0}.get(difficulty, 7.0)
+        dirs = rng.normal(size=(n_clusters, dim))
+        norms = np.linalg.norm(dirs, axis=1, keepdims=True)
+        dirs /= np.where(norms > 0, norms, 1.0)
+        stretch = np.ones((n_clusters, dim)) + np.abs(dirs) * (shape_ratio - 1.0)
+    elif scenario == "density":
+        imbalance = {"easy": 2.5, "medium": 5.0, "hard": 10.0}.get(difficulty, 5.0)
+        std       = {"easy": 0.35, "medium": 0.55, "hard": 0.85}.get(difficulty, 0.55)
+    elif scenario == "highdim":
+        dim = max(dim, 20)
+    elif scenario == "imbalance":
+        imbalance = {"easy": 3.0, "medium": 6.0, "hard": 12.0}.get(difficulty, 6.0)
+
+    centers = rng.normal(size=(n_clusters, dim)) * sep
+
+    # simple cluster size sampler (no external import)
+    if imbalance <= 1.0:
+        weights = np.ones(n_clusters, dtype=np.float64) / n_clusters
+    else:
+        weights = rng.lognormal(mean=0.0, sigma=np.log(imbalance) / 2.0, size=n_clusters)
+        weights /= weights.sum()
+    counts = np.maximum(np.floor(weights * n_samples).astype(int), 1)
+    while counts.sum() < n_samples:
+        counts[int(np.argmax(weights - counts / max(n_samples, 1)))] += 1
+    while counts.sum() > n_samples:
+        idx = int(np.argmax(counts))
+        if counts[idx] > 1:
+            counts[idx] -= 1
+        else:
+            break
+
+    xs, gs = [], []
+    for i, cnt in enumerate(counts):
+        noise = rng.normal(scale=std, size=(cnt, dim))
+        if stretch is not None:
+            noise *= stretch[i]
+        xs.append(centers[i] + noise)
+        gs.append(np.full(cnt, i + 1, dtype=np.int64))
+
+    x  = np.vstack(xs)
+    mn = x.min(axis=0); mx = x.max(axis=0)
+    span = np.where(mx - mn > 0, mx - mn, 1.0)
+    x  = (x - mn) / span
+    gt = np.concatenate(gs)
+    p  = rng.permutation(len(x))
+    return x[p], gt[p], dim
+
+
+def _scenario_save_params(scenario, n_samples, n_clusters, dim, difficulty, seed,
+                           base_clusterings, base_k_min, base_k_max, base_strategy, dataset_name):
+    """Return (generator_key, params_dict) for saving a scenario dataset."""
+    std = _SCENARIO_DIFF_STD.get(difficulty, 0.70)
+    sep = _SCENARIO_DIFF_SEP.get(difficulty, 3.5)
+    imbalance = 1.0
+    common = dict(
+        name=dataset_name, n_samples=n_samples, n_clusters=n_clusters, dim=dim,
+        seed=seed, base_clusterings=base_clusterings,
+        base_k_min=base_k_min, base_k_max=base_k_max, base_strategy=base_strategy,
+    )
+
+    if scenario == "overlap":
+        std = {"easy": 1.0, "medium": 1.5, "hard": 2.2}.get(difficulty, 1.5)
+        sep = {"easy": 2.5, "medium": 1.8, "hard": 1.2}.get(difficulty, 1.8)
+        return "simple", {**common, "cluster_std": std, "separation": sep, "imbalance_ratio": imbalance}
+
+    if scenario == "elongated":
+        shape_ratio = {"easy": 3.0, "medium": 7.0, "hard": 14.0}.get(difficulty, 7.0)
+        return "qiu_joe", {
+            **common,
+            "overlap_level": "medium", "separation": sep,
+            "shape_ratio": shape_ratio, "volume_mean": 1.0,
+            "imbalance_ratio": 1.0, "orientation": "random", "noise_ratio": 0.0,
+        }
+
+    if scenario == "density":
+        noise_ratio = {"easy": 0.05, "medium": 0.10, "hard": 0.20}.get(difficulty, 0.10)
+        branch      = {"easy": 0.02, "medium": 0.06, "hard": 0.12}.get(difficulty, 0.06)
+        return "densired", {
+            "name": dataset_name, "dim": dim, "clunum": n_clusters,
+            "core_num": 80, "data_num": n_samples, "seed": seed,
+            "domain_size": 20.0, "radius": 0.038, "step": 0.055,
+            "noise_ratio": noise_ratio,
+            "density_factors": [1.0] * n_clusters,
+            "momentum": 0.25, "branch": branch, "star": 0.1,
+            "distribution": "uniform",
+            "base_clusterings": base_clusterings,
+            "base_k_min": base_k_min, "base_k_max": base_k_max,
+            "base_strategy": base_strategy,
+        }
+
+    if scenario == "highdim":
+        common["dim"] = max(dim, 20)
+
+    if scenario == "imbalance":
+        imbalance = {"easy": 3.0, "medium": 6.0, "hard": 12.0}.get(difficulty, 6.0)
+
+    return "simple", {**common, "cluster_std": std, "separation": sep, "imbalance_ratio": imbalance}
+
+
 @app.route("/", methods=["GET"])
 def index():
     ensure_dirs()
@@ -864,6 +979,46 @@ def datasets_page():
     return render_template("datasets.html", **context)
 
 
+@app.route("/api/generate-preview", methods=["POST"])
+def api_generate_preview():
+    """Fast preview endpoint: generates X/gt only (no members/saving) for the generate page chart."""
+    from flask import jsonify
+
+    data = request.get_json() or {}
+    scenario  = data.get("scenario", "gaussian")
+    n_samples = min(max(int(data.get("n_samples", 800)), 50), 5000)
+    n_clusters = max(int(data.get("n_clusters", 4)), 2)
+    dim        = max(int(data.get("dim", 2)), 2)
+    difficulty = data.get("difficulty", "medium")
+    seed       = int(data.get("seed", 19))
+
+    try:
+        x, gt, actual_dim = _scenario_xy(scenario, n_samples, n_clusters, dim, difficulty, seed)
+        projected = False
+        if actual_dim > 2:
+            from sklearn.decomposition import PCA
+            x = PCA(n_components=2, random_state=seed).fit_transform(x)
+            projected = True
+        MAX_PTS = 2500
+        if len(x) > MAX_PTS:
+            idx = np.random.RandomState(seed).choice(len(x), MAX_PTS, replace=False)
+            x_plot  = x[idx]
+            gt_plot = gt[idx]
+        else:
+            x_plot, gt_plot = x, gt
+        return jsonify({
+            "x": x_plot[:, 0].tolist(),
+            "y": x_plot[:, 1].tolist(),
+            "labels": gt_plot.tolist(),
+            "n": int(len(x)),
+            "k": int(np.unique(gt).size),
+            "dim": int(actual_dim),
+            "projected": projected,
+        })
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.route("/generate", methods=["GET", "POST"])
 def generate_page():
     ensure_dirs()
@@ -877,7 +1032,36 @@ def generate_page():
         generator_type = request.form.get("generator_type", "densired")
         dataset_name = request.form.get("dataset_name", "").strip() or f"generated_{generator_type}"
         try:
-            if generator_type == "simple":
+            if generator_type == "scenario":
+                scenario    = request.form.get("scenario", "gaussian")
+                n_samples   = int(request.form.get("n_samples", 800))
+                n_clusters  = int(request.form.get("n_clusters", 4))
+                dim         = int(request.form.get("dim", 2))
+                difficulty  = request.form.get("difficulty", "medium")
+                seed        = int(request.form.get("seed", 19))
+                b_clusterings = int(request.form.get("base_clusterings", 30))
+                b_k_min     = int(request.form.get("base_k_min", 2))
+                b_k_max     = int(request.form.get("base_k_max", 8))
+                b_strategy  = request.form.get("base_strategy", "mixed")
+                gen_key, params = _scenario_save_params(
+                    scenario, n_samples, n_clusters, dim, difficulty, seed,
+                    b_clusterings, b_k_min, b_k_max, b_strategy, dataset_name,
+                )
+                if gen_key == "simple":
+                    x, gt, members, meta = generate_simple_gaussian_dataset(**params)
+                    output_path = DATASETS_DIR / f"{dataset_name}.npz"
+                    save_simple_dataset(output_path, x, gt, members, meta)
+                elif gen_key == "qiu_joe":
+                    x, gt, members, meta = generate_qiu_joe_style_dataset(**params)
+                    output_path = DATASETS_DIR / f"{dataset_name}.npz"
+                    save_qiu_joe_dataset(output_path, x, gt, members, meta)
+                elif gen_key == "densired":
+                    x, gt, members, meta = generate_densired_style_dataset(**params)
+                    output_path = DATASETS_DIR / f"{dataset_name}.npz"
+                    save_densired_dataset(output_path, x, gt, members, meta)
+                else:
+                    raise ValueError(f"Неизвестный тип генератора: {gen_key}")
+            elif generator_type == "simple":
                 params = {
                     "name": dataset_name,
                     "n_samples": int(request.form.get("simple_n_samples", 1000)),
@@ -1085,6 +1269,63 @@ def test_page():
     context["run_results"] = run_results
     context["selected_dataset"] = selected_dataset
     return render_template("test.html", **context)
+
+
+@app.route("/api/experiment/run", methods=["POST"])
+def api_experiment_run():
+    """AJAX endpoint used by test.html to run a single algorithm and return JSON metrics."""
+    from flask import jsonify
+    import time
+
+    if DEMO_MODE:
+        return jsonify({"error": "В демонстрационной версии запуск отключён."}), 403
+
+    data = request.get_json() or {}
+    dataset_name   = (data.get("dataset") or "").strip()
+    algorithm_name = (data.get("algorithm") or "hierarchical_baseline").strip()
+    method         = (data.get("method") or "average").strip()
+    seed           = int(data.get("seed") or 19)
+    m              = int(data.get("m") or 20)
+    runs           = int(data.get("runs") or 3)
+
+    if not dataset_name:
+        return jsonify({"error": "Не указан датасет."}), 400
+    if algorithm_name not in ALGORITHM_LABELS:
+        return jsonify({"error": f"Неизвестный алгоритм: {algorithm_name}"}), 400
+
+    try:
+        from algorithms_base import AlgorithmRegistry
+        dataset_path = find_dataset_path(dataset_name)
+        algo_kwargs  = _extract_algorithm_kwargs(algorithm_name, dataset_name, data)
+        t0   = time.perf_counter()
+        algo = AlgorithmRegistry.get(algorithm_name)
+        cr   = algo.run(dataset_path, m=m, runs=runs, method=method, seed=seed, **algo_kwargs)
+        elapsed = time.perf_counter() - t0
+        rec = {
+            "dataset":         dataset_name,
+            "algorithm":       algorithm_name,
+            "algorithm_label": ALGORITHM_LABELS.get(algorithm_name, algorithm_name),
+            "method":          method,
+            "method_label":    METHOD_LABELS.get(method, method),
+            "seed": seed, "m": m, "runs": runs,
+            "nmi_mean": round(cr.nmi_mean, 6),
+            "nmi_std":  round(cr.nmi_std,  6),
+            "ari_mean": round(cr.ari_mean, 6),
+            "ari_std":  round(cr.ari_std,  6),
+            "f_mean":   round(cr.f_mean,   6),
+            "f_std":    round(cr.f_std,    6),
+            "elapsed_sec": round(elapsed, 3),
+            "created_at": datetime.now().isoformat(timespec="seconds"),
+            "error": None,
+        }
+        if cr.extra:
+            rec.update(_json_safe({k: v for k, v in cr.extra.items() if k != "_extra_per_run"}))
+        save_result_record(rec)
+        return jsonify(rec)
+    except FileNotFoundError as exc:
+        return jsonify({"error": str(exc)}), 404
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.route("/results", methods=["GET"])
