@@ -64,7 +64,7 @@
 <script>
 (function () {
     'use strict';
-    var VKR_ALGO_TITLES = {
+    var ALGO_LABELS = {
         'hierarchical_baseline': 'Иерархическая базовая',
         'hierarchical_weighted': 'Иерархическая взвешенная',
         'sdgca': 'SDGCA',
@@ -80,7 +80,7 @@
 
     function filterRows() {
         var linkage = linkageSel.value;
-        var out = rows.filter(function (r) { return VKR_ALGO_TITLES[r.algorithm]; });
+        var out = rows.filter(function (r) { return ALGO_LABELS[r.algorithm]; });
         if (linkage !== 'all') out = out.filter(function (r) { return (r.method || '') === linkage; });
         return out;
     }
@@ -101,7 +101,7 @@
     }
 
     function drawHeatmap(p, metric) {
-        var labels = p.algos.map(function (a) { return VKR_ALGO_TITLES[a] || a; });
+        var labels = p.algos.map(function (a) { return ALGO_LABELS[a] || a; });
         var anno = [];
         for (var i = 0; i < p.datasets.length; i++) {
             for (var j = 0; j < p.algos.length; j++) {
@@ -136,7 +136,7 @@
             var vs = p.grid.map(function (row) { return row[j]; }).filter(function (v) { return v !== null; });
             return vs.length ? vs.reduce(function (a, b) { return a + b; }, 0) / vs.length : null;
         });
-        var x = p.algos.map(function (a) { return VKR_ALGO_TITLES[a] || a; });
+        var x = p.algos.map(function (a) { return ALGO_LABELS[a] || a; });
         var colors = means.map(function (v, i) {
             var bestIdx = means.indexOf(Math.max.apply(null, means.filter(function (m) { return m !== null; })));
             return i === bestIdx ? '#101010' : '#8a8a8a';
@@ -175,7 +175,7 @@
             var rank = r.rank === null ? '—' : r.rank.toFixed(2);
             return '<tr>' +
                 '<td>' + (i + 1) + '</td>' +
-                '<td>' + (VKR_ALGO_TITLES[r.algo] || r.algo) + '</td>' +
+                '<td>' + (ALGO_LABELS[r.algo] || r.algo) + '</td>' +
                 '<td class="text-end metric">' + rank + '</td>' +
                 '<td class="text-end metric">' + r.n + '</td>' +
                 '</tr>';

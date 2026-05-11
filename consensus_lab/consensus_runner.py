@@ -1,8 +1,6 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Callable
-import warnings
-
 import numpy as np
 from hierarchical_consensus import load_dataset, validate_gt, validate_members, validate_method
 from metrics import compute_ari, compute_nmi, compute_pairwise_f_score
@@ -18,20 +16,9 @@ def _build_bc_idx(members: np.ndarray, m: int, cnt_times: int, rng: np.random.Ge
 def run_consensus_loop(dataset_path: str | Path, build_consensus_fn: Callable[[np.ndarray, np.ndarray, int], np.ndarray], *, data_name: str | None=None, seed: int=19, m: int=40, cnt_times: int=20, method: str='average', selection_strategy: str='random', qd_alpha: float=0.5, clamp_m_name: str | None=None) -> dict:
     members, gt = load_dataset(dataset_path)
     pool_size = int(members.shape[1])
-    m = int(m)
-    if m < 1:
-        raise ValueError('m must be at least 1')
     if clamp_m_name:
         from sdgca import _clamp_m
-
-        m = _clamp_m(m, pool_size, clamp_m_name)
-    elif m > pool_size:
-        warnings.warn(
-            f'requested m={m} exceeds pool size {pool_size} (columns in members); using m={pool_size}',
-            RuntimeWarning,
-            stacklevel=2,
-        )
-        m = pool_size
+        m = _clamp_m(int(m), pool_size, clamp_m_name)
     members = validate_members(members, m)
     gt = validate_gt(gt, members.shape[0])
     method = validate_method(method)

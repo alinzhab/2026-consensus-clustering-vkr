@@ -4,226 +4,328 @@
 <section class="page-hero">
     <div class="page-kicker">Эксперимент</div>
     <h1 class="display-5 fw-bold mb-1">Запуск и сравнение алгоритмов</h1>
-    <p class="lead text-secondary mb-0">Выберите датасет, отметьте один или несколько алгоритмов и запустите — результаты появятся в сравнительной таблице.</p>
+    <p class="lead text-secondary mb-0">Выберите датасет, отметьте алгоритмы — можно запустить все четыре одновременно. Мини-таблица сравнения метрик появится прямо здесь.</p>
 </section>
 
-<section class="row g-3" style="flex:1 1 auto;min-height:0;overflow:hidden;">
-    <div class="col-lg-4 d-flex flex-column" style="min-height:0;">
-        <div class="card-panel p-3 d-flex flex-column" style="flex:1;min-height:0;overflow-y:auto;">
-            <h2 class="h5 mb-3">Параметры запуска</h2>
-            <form method="post" id="experiment-form">
+<section class="row g-3 exp-grid" style="flex:1 1 auto; min-height:0;">
+    <div class="col-xl-4 col-lg-5 d-flex">
+        <div class="card-panel p-3 d-flex flex-column" style="width:100%; gap:.7rem;">
 
-                <div class="mb-3">
-                    <label class="form-label">Датасет</label>
-                    <select class="form-select form-select-sm" name="selected_dataset" required>
-                        {% for ds in runnable_datasets %}
-                        {% set ds_id = ds.name.rsplit('.', 1)[0] %}
-                        <option value="{{ ds_id }}" {% if selected_dataset == ds_id %}selected{% endif %}>
-                            {{ ds_id }}{% if ds.members_shape %} · {{ ds.members_shape }}{% endif %}
-                        </option>
-                        {% endfor %}
+            <div>
+                <label class="form-label">Датасет</label>
+                <select class="form-select form-select-sm" id="datasetSelect">
+                    {% for ds in runnable_datasets %}
+                    {% set ds_id = ds.name.rsplit('.', 1)[0] %}
+                    <option value="{{ ds_id }}" {% if selected_dataset == ds_id %}selected{% endif %}>{{ ds_id }}{% if ds.members_shape %} · {{ ds.members_shape }}{% endif %}</option>
+                    {% endfor %}
+                </select>
+                {% if not runnable_datasets %}
+                <div class="section-note mt-1" style="font-size:.8rem;">Нет готовых датасетов с <span class="small-mono">members</span>. Перейдите на страницу «Данные».</div>
+                {% endif %}
+            </div>
+
+            <div>
+                <label class="form-label">Алгоритмы</label>
+                <div class="algo-list">
+                    <label class="algo-card"><input type="checkbox" class="algo-check" value="hierarchical_baseline" checked>
+                        <div><div class="algo-title">Иерархическая базовая</div><div class="algo-desc">Co-association матрица + иерархическая агрегация. Самый быстрый.</div></div></label>
+                    <label class="algo-card"><input type="checkbox" class="algo-check" value="hierarchical_weighted" checked>
+                        <div><div class="algo-title">Иерархическая взвешенная</div><div class="algo-desc">Взвешивание базовых разбиений по парному согласию.</div></div></label>
+                    <label class="algo-card"><input type="checkbox" class="algo-check" value="sdgca">
+                        <div><div class="algo-title">SDGCA</div><div class="algo-desc">С учётом сходства и различия объектов. ADMM-оптимизация.</div></div></label>
+                    <label class="algo-card"><input type="checkbox" class="algo-check" value="sdgca_modified">
+                        <div><div class="algo-title">SDGCA модифицированный</div><div class="algo-desc">Нечёткое взвешивание + графовая диффузия.</div></div></label>
+                </div>
+            </div>
+
+            <div class="row g-2">
+                <div class="col-6"><label class="form-label">Linkage</label>
+                    <select class="form-select form-select-sm" id="method">
+                        <option value="average" selected>average</option>
+                        <option value="complete">complete</option>
+                        <option value="single">single</option>
+                        <option value="ward">ward</option>
                     </select>
-                    {% if not runnable_datasets %}
-                    <div class="section-note mt-1" style="font-size:.8rem;">Нет датасетов. Загрузите файл или сгенерируйте на странице Данные.</div>
-                    {% endif %}
                 </div>
+                <div class="col-6"><label class="form-label">Зерно</label><input class="form-control form-control-sm" id="seed" type="number" value="19"></div>
+                <div class="col-6"><label class="form-label">m (базовых)</label><input class="form-control form-control-sm" id="m" type="number" value="20" min="2" max="60"></div>
+                <div class="col-6"><label class="form-label">runs</label><input class="form-control form-control-sm" id="runs" type="number" value="3" min="1" max="30"></div>
+            </div>
 
-                <div class="mb-3">
-                    <label class="form-label">Алгоритмы</label>
-                    <div class="d-flex flex-column gap-1">
-                        <label class="d-flex align-items-center gap-2" style="cursor:pointer;">
-                            <input type="checkbox" name="algorithms" value="hierarchical_baseline" class="form-check-input m-0" checked>
-                            <span style="font-size:.88rem;">Иерархическая базовая</span>
-                        </label>
-                        <label class="d-flex align-items-center gap-2" style="cursor:pointer;">
-                            <input type="checkbox" name="algorithms" value="hierarchical_weighted" class="form-check-input m-0">
-                            <span style="font-size:.88rem;">Иерархическая взвешенная</span>
-                        </label>
-                        <label class="d-flex align-items-center gap-2" style="cursor:pointer;">
-                            <input type="checkbox" name="algorithms" value="sdgca" class="form-check-input m-0">
-                            <span style="font-size:.88rem;">SDGCA</span>
-                        </label>
-                        <label class="d-flex align-items-center gap-2" style="cursor:pointer;">
-                            <input type="checkbox" name="algorithms" value="sdgca_modified" class="form-check-input m-0">
-                            <span style="font-size:.88rem;">SDGCA модифицированный</span>
-                        </label>
-                    </div>
-                    <div class="d-flex gap-2 mt-2">
-                        <button type="button" class="btn btn-sm" style="font-size:.78rem;padding:.2rem .6rem;border:1px solid var(--line);" onclick="document.querySelectorAll('[name=algorithms]').forEach(c=>c.checked=true)">Все</button>
-                        <button type="button" class="btn btn-sm" style="font-size:.78rem;padding:.2rem .6rem;border:1px solid var(--line);" onclick="document.querySelectorAll('[name=algorithms]').forEach(c=>c.checked=false)">Снять</button>
-                    </div>
-                </div>
+            <div class="d-flex gap-2 mt-auto">
+                <button type="button" class="btn btn-outline-dark" id="resetBtn">Очистить</button>
+                <button type="button" class="btn btn-primary flex-grow-1" id="runBtn" {% if demo_mode %}disabled{% endif %}>Запустить выбранные</button>
+            </div>
 
-                <div class="row g-2 mb-3">
-                    <div class="col-6">
-                        <label class="form-label">Базовых разбиений (m)</label>
-                        <input class="form-control form-control-sm" name="m" type="number" value="20" min="2">
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Число запусков</label>
-                        <input class="form-control form-control-sm" name="runs" type="number" value="5" min="1">
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Seed</label>
-                        <input class="form-control form-control-sm" name="seed" type="number" value="19">
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Правило объединения</label>
-                        <select class="form-select form-select-sm" name="method">
-                            <option value="average">average</option>
-                            <option value="complete">complete</option>
-                            <option value="single">single</option>
-                            <option value="ward">ward</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div class="mb-3" id="sharpen-block">
-                    <div class="tab-caption mb-1" style="font-size:.78rem;">Взвешенная версия</div>
-                    <div class="row g-2">
-                        <div class="col-6">
-                            <label class="form-label">Усиление весов</label>
-                            <input class="form-control form-control-sm" name="sharpen" type="number" step="0.1" value="1.5">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mb-3" id="sdgca-block">
-                    <div class="tab-caption mb-1" style="font-size:.78rem;">SDGCA</div>
-                    <div class="row g-2">
-                        <div class="col-4">
-                            <label class="form-label">λ</label>
-                            <input class="form-control form-control-sm" name="lambda_" type="number" step="0.01" value="0.09">
-                        </div>
-                        <div class="col-4">
-                            <label class="form-label">η</label>
-                            <input class="form-control form-control-sm" name="eta" type="number" step="0.01" value="0.75">
-                        </div>
-                        <div class="col-4">
-                            <label class="form-label">θ</label>
-                            <input class="form-control form-control-sm" name="theta" type="number" step="0.01" value="0.65">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="mb-3" id="sdgca-mod-block">
-                    <div class="tab-caption mb-1" style="font-size:.78rem;">SDGCA модифицированный</div>
-                    <div class="row g-2">
-                        <div class="col-4">
-                            <label class="form-label">λ</label>
-                            <input class="form-control form-control-sm" name="lambda_mod" type="number" step="0.01" placeholder="авто">
-                        </div>
-                        <div class="col-4">
-                            <label class="form-label">η</label>
-                            <input class="form-control form-control-sm" name="eta_mod" type="number" step="0.01" placeholder="авто">
-                        </div>
-                        <div class="col-4">
-                            <label class="form-label">θ</label>
-                            <input class="form-control form-control-sm" name="theta_mod" type="number" step="0.01" placeholder="авто">
-                        </div>
-                    </div>
-                </div>
-
-                <button class="btn btn-primary w-100" id="run-btn">Запустить</button>
-            </form>
+            {% if demo_mode %}
+            <div class="alert alert-warning py-2 px-3 mb-0" style="font-size:.82rem;">В демонстрационной версии запуск отключён.</div>
+            {% endif %}
         </div>
     </div>
 
-    <div class="col-lg-8 d-flex flex-column" style="min-height:0;">
-        <div class="card-panel p-3 d-flex flex-column" style="flex:1;min-height:0;overflow-y:auto;">
-
-            {% if run_results %}
-            <h2 class="h5 mb-3">Результаты</h2>
-
-            {% set has_error = run_results | selectattr('error') | list %}
-            {% if has_error %}
-            {% for r in has_error %}
-            <div class="alert alert-danger py-2 px-3 mb-2" style="font-size:.83rem;">
-                <strong>{{ r.algorithm_label }}</strong> — {{ r.error }}
+    <div class="col-xl-8 col-lg-7 d-flex flex-column" style="gap:.7rem; min-height:0;">
+        <div class="card-panel p-3" style="flex:0 0 auto;">
+            <h2 class="h6 mb-2">Прогресс</h2>
+            <div id="progressList" class="progress-list">
+                <div class="section-note" style="font-size:.85rem;" id="progressEmpty">Выберите алгоритмы и нажмите «Запустить выбранные».</div>
             </div>
-            {% endfor %}
-            {% endif %}
+        </div>
 
-            {% set ok = run_results | rejectattr('error') | list %}
-            {% if ok %}
-            <div class="table-responsive mb-3">
-                <table class="table table-sm" style="font-size:.87rem;">
+        <div class="card-panel p-3 d-flex flex-column" style="flex:1 1 auto; min-height:0;">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="h6 mb-0">Сравнение метрик</h2>
+                <div class="section-note" id="cmpMeta" style="font-size:.78rem;">—</div>
+            </div>
+            <div class="table-responsive" style="flex:1 1 auto; min-height:0; overflow:auto;">
+                <table class="table table-sm align-middle mb-0" id="cmpTable">
                     <thead>
                         <tr>
-                            <th>Алгоритм</th>
+                            <th style="min-width:170px;">Алгоритм</th>
+                            <th style="min-width:78px;">Linkage</th>
                             <th class="text-end">NMI</th>
-                            <th class="text-end text-secondary" style="font-size:.78rem;">±std</th>
                             <th class="text-end">ARI</th>
-                            <th class="text-end text-secondary" style="font-size:.78rem;">±std</th>
                             <th class="text-end">F-score</th>
-                            <th class="text-end text-secondary" style="font-size:.78rem;">±std</th>
+                            <th class="text-end">Время, с</th>
+                            <th class="text-end">Статус</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {% set best_nmi = ok | map(attribute='nmi_mean') | max %}
-                        {% set best_ari = ok | map(attribute='ari_mean') | max %}
-                        {% set best_f   = ok | map(attribute='f_mean')   | max %}
-                        {% for r in ok %}
-                        <tr>
-                            <td class="fw-semibold">{{ r.algorithm_label }}</td>
-                            <td class="text-end {% if r.nmi_mean == best_nmi and ok|length > 1 %}fw-bold text-success{% endif %}">{{ '%.4f' % r.nmi_mean }}</td>
-                            <td class="text-end text-secondary" style="font-size:.78rem;">{{ '%.4f' % r.nmi_std }}</td>
-                            <td class="text-end {% if r.ari_mean == best_ari and ok|length > 1 %}fw-bold text-success{% endif %}">{{ '%.4f' % r.ari_mean }}</td>
-                            <td class="text-end text-secondary" style="font-size:.78rem;">{{ '%.4f' % r.ari_std }}</td>
-                            <td class="text-end {% if r.f_mean == best_f and ok|length > 1 %}fw-bold text-success{% endif %}">{{ '%.4f' % r.f_mean }}</td>
-                            <td class="text-end text-secondary" style="font-size:.78rem;">{{ '%.4f' % r.f_std }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
+                    <tbody id="cmpBody"></tbody>
                 </table>
             </div>
-
-            {% if ok | length > 1 %}
-            <div style="font-size:.8rem;color:var(--ink-muted);">
-                Лучший результат по каждой метрике выделен <span class="fw-bold text-success">зелёным</span>.
-                Датасет: <strong>{{ ok[0].dataset }}</strong> · m={{ ok[0].m }} · runs={{ ok[0].runs }} · {{ ok[0].method_label }}
-            </div>
-            {% else %}
-            <div style="font-size:.8rem;color:var(--ink-muted);">
-                {{ ok[0].dataset }} · m={{ ok[0].m }} · runs={{ ok[0].runs }} · {{ ok[0].method_label }} · {{ ok[0].created_at }}
-            </div>
-            {% endif %}
-            {% endif %}
-
-            {% else %}
-            <div class="d-flex flex-column align-items-center justify-content-center h-100 text-secondary" style="min-height:220px;gap:.75rem;">
-                <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"/></svg>
-                <div style="font-size:.9rem;">Выберите алгоритмы и нажмите <strong>Запустить</strong></div>
-                <div style="font-size:.8rem;">Результаты автоматически сохранятся в журнале экспериментов</div>
-            </div>
-            {% endif %}
-
         </div>
     </div>
 </section>
+
+<style>
+    .algo-list { display: flex; flex-direction: column; gap: .42rem; }
+    .algo-card {
+        display: flex; align-items: flex-start; gap: .55rem;
+        border: 1px solid var(--line); border-radius: 14px;
+        padding: .55rem .7rem; cursor: pointer; background: #fff;
+        transition: border-color .15s, background-color .15s, box-shadow .15s;
+    }
+    .algo-card input { margin-top: .22rem; accent-color: var(--ink); }
+    .algo-card:hover { border-color: #bdbdb5; background: var(--surface-muted); }
+    .algo-card:has(input:checked) { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(16,16,16,.08); background: #fff; }
+    .algo-title { font-weight: 700; font-size: .87rem; letter-spacing: -.02em; }
+    .algo-desc  { color: var(--ink-muted); font-size: .78rem; line-height: 1.3; }
+
+    .progress-list { display: flex; flex-direction: column; gap: .45rem; }
+    .progress-row {
+        display: grid;
+        grid-template-columns: minmax(180px, 1fr) 1fr 110px;
+        gap: .65rem; align-items: center;
+        padding: .42rem .7rem;
+        border: 1px solid var(--line); border-radius: 12px;
+        background: var(--surface);
+    }
+    .progress-name { font-weight: 700; font-size: .85rem; letter-spacing: -.02em; }
+    .progress-bar-wrap {
+        height: 6px; background: var(--surface-muted);
+        border-radius: 4px; overflow: hidden; position: relative;
+    }
+    .progress-bar-fill {
+        height: 100%; background: var(--ink);
+        width: 0%; transition: width .25s ease;
+    }
+    .progress-bar-wrap.indeterminate .progress-bar-fill {
+        width: 40%;
+        animation: indet 1.1s ease-in-out infinite;
+    }
+    @keyframes indet {
+        0%   { transform: translateX(-100%); }
+        100% { transform: translateX(250%); }
+    }
+    .progress-status {
+        font-size: .76rem; font-weight: 700; text-align: right;
+        color: var(--ink-muted); letter-spacing: -.01em;
+    }
+    .progress-status.done { color: #2f7a3a; }
+    .progress-status.err  { color: #9b3030; }
+
+    #cmpTable td.metric { font-family: ui-monospace, Consolas, monospace; font-size: .86rem; }
+    #cmpTable .best { font-weight: 800; }
+    #cmpTable tr.placeholder td { color: var(--ink-muted); font-style: italic; }
+</style>
 
 <script>
 (function () {
-    const checkboxes = document.querySelectorAll('[name=algorithms]');
+    'use strict';
+    var ALGO_LABELS = {
+        'hierarchical_baseline': 'Иерархическая базовая',
+        'hierarchical_weighted': 'Иерархическая взвешенная',
+        'sdgca': 'SDGCA',
+        'sdgca_modified': 'SDGCA модифицированный',
+    };
 
-    function updateBlocks() {
-        const checked = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
-        document.getElementById('sharpen-block').style.display = checked.includes('hierarchical_weighted') ? '' : 'none';
-        document.getElementById('sdgca-block').style.display = checked.includes('sdgca') ? '' : 'none';
-        document.getElementById('sdgca-mod-block').style.display = checked.includes('sdgca_modified') ? '' : 'none';
+    var runBtn = document.getElementById('runBtn');
+    var resetBtn = document.getElementById('resetBtn');
+    var dsSel = document.getElementById('datasetSelect');
+    var methodSel = document.getElementById('method');
+    var seedI = document.getElementById('seed');
+    var mI = document.getElementById('m');
+    var runsI = document.getElementById('runs');
+    var progressList = document.getElementById('progressList');
+    var progressEmpty = document.getElementById('progressEmpty');
+    var cmpBody = document.getElementById('cmpBody');
+    var cmpMeta = document.getElementById('cmpMeta');
+
+    var rowsByAlgo = {};
+    var resultsByAlgo = {};
+
+    function fmt(v) {
+        if (v === null || v === undefined || v === '') return '—';
+        var n = Number(v);
+        if (!isFinite(n)) return String(v);
+        return n.toFixed(3);
     }
 
-    checkboxes.forEach(c => c.addEventListener('change', updateBlocks));
-    updateBlocks();
+    function ensureProgressRow(algo) {
+        if (rowsByAlgo[algo]) return rowsByAlgo[algo];
+        var row = document.createElement('div');
+        row.className = 'progress-row';
+        row.innerHTML =
+            '<div class="progress-name">' + ALGO_LABELS[algo] + '</div>' +
+            '<div class="progress-bar-wrap indeterminate"><div class="progress-bar-fill"></div></div>' +
+            '<div class="progress-status">в очереди</div>';
+        progressList.appendChild(row);
+        rowsByAlgo[algo] = row;
+        return row;
+    }
 
-    document.getElementById('experiment-form').addEventListener('submit', function () {
-        const btn = document.getElementById('run-btn');
-        const checked = Array.from(checkboxes).filter(c => c.checked);
-        if (checked.length === 0) { alert('Выберите хотя бы один алгоритм.'); return false; }
-        btn.disabled = true;
-        btn.textContent = 'Выполняется...';
+    function setRowStatus(algo, status, extraClass) {
+        var row = ensureProgressRow(algo);
+        var st = row.querySelector('.progress-status');
+        st.textContent = status;
+        st.className = 'progress-status' + (extraClass ? ' ' + extraClass : '');
+    }
+    function setRowDone(algo, t) {
+        var row = ensureProgressRow(algo);
+        row.querySelector('.progress-bar-wrap').classList.remove('indeterminate');
+        row.querySelector('.progress-bar-fill').style.width = '100%';
+        setRowStatus(algo, 'готово · ' + t.toFixed(1) + ' с', 'done');
+    }
+    function setRowError(algo, msg) {
+        var row = ensureProgressRow(algo);
+        row.querySelector('.progress-bar-wrap').classList.remove('indeterminate');
+        row.querySelector('.progress-bar-fill').style.width = '0%';
+        setRowStatus(algo, 'ошибка', 'err');
+        row.title = msg;
+    }
+    function setRowRunning(algo) {
+        var row = ensureProgressRow(algo);
+        row.querySelector('.progress-bar-wrap').classList.add('indeterminate');
+        setRowStatus(algo, 'считаю…');
+    }
+
+    function rebuildCmpTable() {
+        cmpBody.innerHTML = '';
+        var algos = Object.keys(resultsByAlgo);
+        if (algos.length === 0) {
+            cmpBody.innerHTML = '<tr class="placeholder"><td colspan="7">Запустите алгоритмы, и здесь появится сравнение.</td></tr>';
+            cmpMeta.textContent = '—';
+            return;
+        }
+        var values = { nmi_mean: [], ari_mean: [], f_mean: [] };
+        algos.forEach(function (a) {
+            var r = resultsByAlgo[a];
+            ['nmi_mean', 'ari_mean', 'f_mean'].forEach(function (k) {
+                if (typeof r[k] === 'number') values[k].push(r[k]);
+            });
+        });
+        var bests = {};
+        Object.keys(values).forEach(function (k) {
+            bests[k] = values[k].length ? Math.max.apply(null, values[k]) : null;
+        });
+        algos.forEach(function (a) {
+            var r = resultsByAlgo[a];
+            var tr = document.createElement('tr');
+            function cell(v, key, isMetric) {
+                var td = document.createElement('td');
+                td.className = (isMetric ? 'metric text-end' : '');
+                td.textContent = fmt(v);
+                if (isMetric && bests[key] !== null && typeof v === 'number' && Math.abs(v - bests[key]) < 1e-9) td.classList.add('best');
+                return td;
+            }
+            var nameTd = document.createElement('td');
+            nameTd.textContent = r.algorithm_label || ALGO_LABELS[a] || a;
+            var linkTd = document.createElement('td');
+            linkTd.textContent = r.method_label || r.method || '';
+            tr.appendChild(nameTd);
+            tr.appendChild(linkTd);
+            tr.appendChild(cell(r.nmi_mean, 'nmi_mean', true));
+            tr.appendChild(cell(r.ari_mean, 'ari_mean', true));
+            tr.appendChild(cell(r.f_mean, 'f_mean', true));
+            var tTd = document.createElement('td');
+            tTd.className = 'text-end metric';
+            tTd.textContent = (typeof r.elapsed_sec === 'number') ? r.elapsed_sec.toFixed(1) : '—';
+            tr.appendChild(tTd);
+            var stTd = document.createElement('td');
+            stTd.className = 'text-end';
+            stTd.style.fontWeight = '700';
+            stTd.style.color = r.error ? '#9b3030' : '#2f7a3a';
+            stTd.textContent = r.error ? 'ошибка' : 'готово';
+            tr.appendChild(stTd);
+            cmpBody.appendChild(tr);
+        });
+        cmpMeta.textContent = 'Лучшие значения метрик выделены жирным';
+    }
+
+    async function runOne(algo, cfg) {
+        setRowRunning(algo);
+        try {
+            var resp = await fetch('/api/experiment/run', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(Object.assign({ algorithm: algo }, cfg)),
+            });
+            var data = await resp.json();
+            if (data.error) {
+                setRowError(algo, data.error);
+                resultsByAlgo[algo] = { algorithm: algo, error: data.error, method: cfg.method };
+            } else {
+                setRowDone(algo, data.elapsed_sec || 0);
+                resultsByAlgo[algo] = data;
+            }
+        } catch (e) {
+            setRowError(algo, e.message);
+            resultsByAlgo[algo] = { algorithm: algo, error: e.message, method: cfg.method };
+        } finally {
+            rebuildCmpTable();
+        }
+    }
+
+    runBtn.addEventListener('click', async function () {
+        var picks = Array.prototype.slice.call(document.querySelectorAll('.algo-check'))
+            .filter(function (c) { return c.checked; }).map(function (c) { return c.value; });
+        if (picks.length === 0) { alert('Отметьте хотя бы один алгоритм'); return; }
+        if (!dsSel.value) { alert('Выберите датасет'); return; }
+        var cfg = {
+            dataset: dsSel.value,
+            method:  methodSel.value,
+            seed:    parseInt(seedI.value, 10) || 19,
+            m:       parseInt(mI.value, 10) || 20,
+            runs:    parseInt(runsI.value, 10) || 3,
+        };
+        runBtn.disabled = true;
+        progressEmpty.style.display = 'none';
+        rowsByAlgo = {};
+        resultsByAlgo = {};
+        progressList.querySelectorAll('.progress-row').forEach(function (n) { n.remove(); });
+        cmpBody.innerHTML = '<tr class="placeholder"><td colspan="7">Идёт расчёт, метрики появятся по мере готовности.</td></tr>';
+        picks.forEach(function (a) { ensureProgressRow(a); });
+        if (window.aiWidget) window.aiWidget.setDataset(cfg.dataset);
+        try { await Promise.all(picks.map(function (a) { return runOne(a, cfg); })); }
+        finally { runBtn.disabled = false; }
+    });
+
+    resetBtn.addEventListener('click', function () {
+        rowsByAlgo = {}; resultsByAlgo = {};
+        progressList.querySelectorAll('.progress-row').forEach(function (n) { n.remove(); });
+        progressEmpty.style.display = '';
+        cmpBody.innerHTML = '';
+        cmpMeta.textContent = '—';
     });
 })();
 </script>
 {% endblock %}
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      

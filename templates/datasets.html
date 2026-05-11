@@ -27,9 +27,12 @@
                 <form method="post" enctype="multipart/form-data" class="card-panel p-3 d-flex flex-column" style="width:100%; gap:.7rem;">
                     <input type="hidden" name="active_tab" value="upload">
                     <h2 class="h6 mb-0">Файл датасета</h2>
+                    {% if demo_mode %}
+                    <div class="alert alert-warning py-2 px-3 mb-0" style="font-size:.83rem;">В демонстрационной версии загрузка отключена.</div>
+                    {% endif %}
                     <div>
                         <label class="form-label">Выберите файл</label>
-                        <input class="form-control form-control-sm" type="file" name="dataset_file" accept=".npz,.mat,.csv,.tsv,.txt,.json" required>
+                        <input class="form-control form-control-sm" type="file" name="dataset_file" accept=".npz,.mat,.csv,.tsv,.txt,.json" required {% if demo_mode %}disabled{% endif %}>
                         <div class="section-note mt-1" style="font-size:.78rem;">Форматы: <span class="small-mono">.npz .mat .csv .tsv .txt .json</span>. Минимум — <span class="small-mono">X + gt</span> или <span class="small-mono">members + gt</span>.</div>
                     </div>
 
@@ -38,11 +41,11 @@
                     <div class="row g-2">
                         <div class="col-6">
                             <label class="form-label">Базовых разбиений</label>
-                            <input class="form-control form-control-sm" name="upload_base_clusterings" type="number" value="30" min="1">
+                            <input class="form-control form-control-sm" name="upload_base_clusterings" type="number" value="30" min="1" {% if demo_mode %}disabled{% endif %}>
                         </div>
                         <div class="col-6">
                             <label class="form-label">Стратегия</label>
-                            <select class="form-select form-select-sm" name="upload_base_strategy">
+                            <select class="form-select form-select-sm" name="upload_base_strategy" {% if demo_mode %}disabled{% endif %}>
                                 <option value="mixed">mixed</option>
                                 <option value="kmeans">kmeans</option>
                                 <option value="hierarchical">hierarchical</option>
@@ -50,15 +53,15 @@
                         </div>
                         <div class="col-6">
                             <label class="form-label">k мин.</label>
-                            <input class="form-control form-control-sm" name="upload_base_k_min" type="number" value="2" min="2">
+                            <input class="form-control form-control-sm" name="upload_base_k_min" type="number" value="2" min="2" {% if demo_mode %}disabled{% endif %}>
                         </div>
                         <div class="col-6">
                             <label class="form-label">k макс.</label>
-                            <input class="form-control form-control-sm" name="upload_base_k_max" type="number" value="8" min="2">
+                            <input class="form-control form-control-sm" name="upload_base_k_max" type="number" value="8" min="2" {% if demo_mode %}disabled{% endif %}>
                         </div>
                     </div>
 
-                    <button class="btn btn-primary mt-auto">Загрузить и сохранить</button>
+                    <button class="btn btn-primary mt-auto" {% if demo_mode %}disabled{% endif %}>Загрузить и сохранить</button>
 
                     {% if upload_message %}
                     <div class="alert alert-info py-2 px-3 mb-0" style="font-size:.84rem;">
@@ -117,7 +120,7 @@
 
     <div class="tab-pane fade {% if active_tab == 'generate' %}show active{% endif %}" id="tab-generate" role="tabpanel">
         <section class="row g-3 h-100" style="min-height:0;">
-            <div class="col-xxl-3 col-xl-4 col-lg-5 d-flex">
+            <div class="col-xl-4 col-lg-5 d-flex">
                 <form method="post" id="genForm" action="{{ url_for('generate_page') }}" class="card-panel p-3 d-flex flex-column" style="width:100%; gap:.7rem;">
                     <input type="hidden" name="generator_type" value="scenario">
                     <input type="hidden" name="active_tab" value="generate">
@@ -191,7 +194,7 @@
                 </form>
             </div>
 
-            <div class="col-xxl-9 col-xl-8 col-lg-7 d-flex flex-column" style="gap:.7rem;">
+            <div class="col-xl-8 col-lg-7 d-flex flex-column" style="gap:.7rem;">
                 <div class="card-panel p-3" style="flex:1 1 auto; min-height:340px; display:flex; flex-direction:column;">
                     <div class="d-flex justify-content-between align-items-center mb-2" style="gap:.75rem;">
                         <h2 class="h6 mb-0">Превью кластеров</h2>
@@ -281,7 +284,6 @@
 <script>
 (function () {
     'use strict';
-    var PREVIEW_URL = {{ url_for('api_generate_preview') | tojson }};
     var PALETTE = ['#101010', '#d4604a', '#3b6bb4', '#6da66a', '#b58a3c', '#7e54a8', '#2f8f8f', '#c64f7f', '#8a8a48', '#4f4f4f'];
     var form  = document.getElementById('genForm');
     var btn   = document.getElementById('previewBtn');
@@ -345,19 +347,12 @@
         var orig = btn.textContent;
         btn.textContent = 'Считаю…';
         try {
-            var resp = await fetch(PREVIEW_URL, {
+            var resp = await fetch('/api/generate/preview', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload()),
             });
-            var raw = await resp.text();
-            var ct = (resp.headers.get('content-type') || '').toLowerCase();
-            if (!ct.includes('application/json')) {
-                setMeta('Ответ не JSON (HTTP ' + resp.status + '). Откройте приложение по тому же URL, где запущен сервер Flask.', false);
-                return;
-            }
-            var data = JSON.parse(raw);
+            var data = await resp.json();
             if (data.error) { setMeta(data.error, false); return; }
-            if (!resp.ok) { setMeta('HTTP ' + resp.status, false); return; }
             draw(data);
         } catch (e) { setMeta('Ошибка: ' + e.message, false); }
         finally { btn.disabled = false; btn.textContent = orig; }

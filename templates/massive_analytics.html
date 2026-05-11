@@ -245,7 +245,7 @@ function filteredRows() {
     });
 }
 
-function buildAlgorithmCaption(row) {
+function algorithmLabel(row) {
     const bits = [row.algorithm];
     if (row.variant && row.variant !== "default") bits.push(row.variant);
     if (row.linkage) bits.push(row.linkage);
@@ -256,7 +256,7 @@ function buildAlgorithmCaption(row) {
 function renderQualityBar(rows, metric) {
     const grouped = {};
     rows.forEach(row => {
-        const label = buildAlgorithmCaption(row);
+        const label = algorithmLabel(row);
         grouped[label] = grouped[label] || [];
         grouped[label].push(row[metric]);
     });
@@ -307,8 +307,8 @@ function renderDelta(rows, metric) {
 
 function renderHeatmap(rows, metric) {
     const types = unique(rows.map(r => r.dataset_type));
-    const algorithms = unique(rows.map(buildAlgorithmCaption));
-    const z = types.map(dtype => algorithms.map(algo => mean(rows.filter(r => r.dataset_type === dtype && buildAlgorithmCaption(r) === algo).map(r => r[metric]))));
+    const algorithms = unique(rows.map(algorithmLabel));
+    const z = types.map(dtype => algorithms.map(algo => mean(rows.filter(r => r.dataset_type === dtype && algorithmLabel(r) === algo).map(r => r[metric]))));
     Plotly.newPlot("typeHeatmap", [{
         type: "heatmap",
         x: algorithms,
@@ -330,7 +330,7 @@ function renderRuntime(rows) {
         mode: "markers",
         x: rows.map(r => r.n_samples),
         y: rows.map(r => r.runtime_sec),
-        text: rows.map(r => `${r.dataset_id}<br>${buildAlgorithmCaption(r)}`),
+        text: rows.map(r => `${r.dataset_id}<br>${algorithmLabel(r)}`),
         marker: {size: 8, color: rows.map(r => r.algorithm_family === "consensus" ? "#222" : "#777")}
     }], {
         title: "Runtime vs n_samples",
@@ -346,7 +346,7 @@ function renderTradeoff(rows, metric) {
         mode: "markers",
         x: rows.map(r => r.runtime_sec),
         y: rows.map(r => r[metric]),
-        text: rows.map(r => `${r.dataset_id}<br>${buildAlgorithmCaption(r)}`),
+        text: rows.map(r => `${r.dataset_id}<br>${algorithmLabel(r)}`),
         marker: {size: 8, color: rows.map(r => r.algorithm_family === "consensus" ? "#1b7f5c" : "#5b6470")}
     }], {
         title: "Runtime-quality trade-off",
