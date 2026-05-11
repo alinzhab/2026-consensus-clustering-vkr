@@ -1,0 +1,48 @@
+{
+  "dataset": "__e2e_overlap",
+  "algorithm": "hierarchical_baseline",
+  "algorithm_label": "Иерархическая базовая версия",
+  "method": "average",
+  "method_label": "average",
+  "seed": 19,
+  "m": 10,
+  "runs": 3,
+  "nmi_mean": 0.538258,
+  "nmi_std": 0.0,
+  "ari_mean": 0.477697,
+  "ari_std": 0.0,
+  "f_mean": 0.611746,
+  "f_std": 0.0,
+  "elapsed_sec": 0.04,
+  "created_at": "2026-05-11T14:23:44",
+  "nmi_scores": [
+    0.5382584371471113,
+    0.5382584371471113,
+    0.5382584371471113
+  ],
+  "ari_scores": [
+    0.4776971896629062,
+    0.4776971896629062,
+    0.4776971896629062
+  ],
+  "f_scores": [
+    0.6117463109547542,
+    0.6117463109547542,
+    0.6117463109547542
+  ],
+  "selected_base_clusterings": [
+    5,
+    7,
+    0,
+    9,
+    2,
+    8,
+    1,
+    4,
+    3,
+    6
+  ],
+  "pool_size": 10,
+  "selection_strategy": "random",
+  "qd_alpha": null
+}

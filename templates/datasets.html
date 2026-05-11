@@ -2,320 +2,400 @@
 
 {% block content %}
 <section class="page-hero">
-    <div class="page-kicker">Страница датасетов</div>
-    <h1 class="display-5 fw-bold mb-1">Загрузка и просмотр наборов данных</h1>
-    <p class="lead text-secondary mb-0">Добавьте датасет и просмотрите характеристики доступных наборов. Форматы: <span class="small-mono">.npz .mat .csv .tsv .txt .json</span>. Нужны <span class="small-mono">X</span>&nbsp;и&nbsp;<span class="small-mono">gt</span> или <span class="small-mono">members</span>&nbsp;и&nbsp;<span class="small-mono">gt</span>.</p>
+    <div class="page-kicker">Данные</div>
+    <h1 class="display-5 fw-bold mb-1">Датасеты системы</h1>
+    <p class="lead text-secondary mb-0">Загрузите собственный файл или сгенерируйте синтетический датасет. Все наборы попадают в общий каталог и доступны на странице «Эксперимент».</p>
 </section>
 
-<div class="d-flex gap-2 mb-0" style="flex:0 0 auto;">
-    <a href="{{ url_for('datasets_page') }}" class="nav-pill active" style="font-size:.83rem;">📁 Датасеты</a>
-    <a href="{{ url_for('generate_page') }}" class="nav-pill" style="font-size:.83rem;">⚙️ Генерация</a>
-    <a href="{{ url_for('assistant_page') }}" class="nav-pill" style="font-size:.83rem;">🤖 ИИ-анализ</a>
+<ul class="nav nav-tabs" id="dataTabs" role="tablist" style="flex:0 0 auto;">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link {% if active_tab != 'generate' %}active{% endif %}" id="upload-tab" data-bs-toggle="tab" data-bs-target="#tab-upload" type="button">Загрузить</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link {% if active_tab == 'generate' %}active{% endif %}" id="generate-tab" data-bs-toggle="tab" data-bs-target="#tab-generate" type="button">Сгенерировать</button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="list-tab" data-bs-toggle="tab" data-bs-target="#tab-list" type="button">Каталог · {{ dataset_count }}</button>
+    </li>
+</ul>
+
+<div class="tab-content" style="flex:1 1 auto; min-height:0;">
+
+    <div class="tab-pane fade {% if active_tab != 'generate' %}show active{% endif %}" id="tab-upload" role="tabpanel">
+        <section class="row g-3 h-100" style="min-height:0;">
+            <div class="col-lg-5 d-flex">
+                <form method="post" enctype="multipart/form-data" class="card-panel p-3 d-flex flex-column" style="width:100%; gap:.7rem;">
+                    <input type="hidden" name="active_tab" value="upload">
+                    <h2 class="h6 mb-0">Файл датасета</h2>
+                    <div>
+                        <label class="form-label">Выберите файл</label>
+                        <input class="form-control form-control-sm" type="file" name="dataset_file" accept=".npz,.mat,.csv,.tsv,.txt,.json" required>
+                        <div class="section-note mt-1" style="font-size:.78rem;">Форматы: <span class="small-mono">.npz .mat .csv .tsv .txt .json</span>. Минимум — <span class="small-mono">X + gt</span> или <span class="small-mono">members + gt</span>.</div>
+                    </div>
+
+                    <div class="section-note" style="font-size:.8rem;">Если в файле нет ансамбля <span class="small-mono">members</span>, он будет построен автоматически с этими настройками:</div>
+
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">Базовых разбиений</label>
+                            <input class="form-control form-control-sm" name="upload_base_clusterings" type="number" value="30" min="1">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">Стратегия</label>
+                            <select class="form-select form-select-sm" name="upload_base_strategy">
+                                <option value="mixed">mixed</option>
+                                <option value="kmeans">kmeans</option>
+                                <option value="hierarchical">hierarchical</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">k мин.</label>
+                            <input class="form-control form-control-sm" name="upload_base_k_min" type="number" value="2" min="2">
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label">k макс.</label>
+                            <input class="form-control form-control-sm" name="upload_base_k_max" type="number" value="8" min="2">
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary mt-auto">Загрузить и сохранить</button>
+
+                    {% if upload_message %}
+                    <div class="alert alert-info py-2 px-3 mb-0" style="font-size:.84rem;">
+                        {{ upload_message }}
+                        {% if upload_dataset_id %}
+                        <div class="mt-1 d-flex gap-2">
+                            <a href="{{ url_for('test_page') }}?dataset={{ upload_dataset_id }}" class="btn btn-primary btn-sm">Открыть эксперимент</a>
+                            <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="tab" data-bs-target="#tab-list">К каталогу</button>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </form>
+            </div>
+
+            <div class="col-lg-7 d-flex">
+                <div class="card-panel p-3 d-flex flex-column" style="width:100%; gap:.6rem;">
+                    <h2 class="h6 mb-0">Что нужно для запуска алгоритмов</h2>
+                    <div class="section-note" style="font-size:.85rem; line-height:1.5;">
+                        Алгоритмы консенсус-кластеризации работают с ансамблем базовых разбиений объектов одного и того же набора данных. После загрузки файла система автоматически выполняет проверки и при необходимости достраивает ансамбль.
+                    </div>
+                    <div class="row g-2">
+                        <div class="col-md-6">
+                            <div class="metric-box">
+                                <div class="stat-label">Поле</div>
+                                <div class="fw-bold" style="font-size:.95rem;"><span class="small-mono">X</span> — матрица признаков</div>
+                                <div class="section-note" style="font-size:.78rem;">Форма <span class="small-mono">(n, d)</span>. Используется для построения базовых разбиений и анализа.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="metric-box">
+                                <div class="stat-label">Поле</div>
+                                <div class="fw-bold" style="font-size:.95rem;"><span class="small-mono">gt</span> — эталонные метки</div>
+                                <div class="section-note" style="font-size:.78rem;">Вектор длины <span class="small-mono">n</span>. Нужен только для оценки NMI / ARI / F-score.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="metric-box">
+                                <div class="stat-label">Поле</div>
+                                <div class="fw-bold" style="font-size:.95rem;"><span class="small-mono">members</span> — ансамбль</div>
+                                <div class="section-note" style="font-size:.78rem;">Матрица <span class="small-mono">(n, m)</span> базовых меток. Если поля нет, система строит ансамбль сама.</div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="metric-box">
+                                <div class="stat-label">Совет</div>
+                                <div class="fw-bold" style="font-size:.95rem;">m от 20 до 40</div>
+                                <div class="section-note" style="font-size:.78rem;">Большее <span class="small-mono">m</span> повышает стабильность, но увеличивает память и время.</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div class="tab-pane fade {% if active_tab == 'generate' %}show active{% endif %}" id="tab-generate" role="tabpanel">
+        <section class="row g-3 h-100" style="min-height:0;">
+            <div class="col-xxl-3 col-xl-4 col-lg-5 d-flex">
+                <form method="post" id="genForm" action="{{ url_for('generate_page') }}" class="card-panel p-3 d-flex flex-column" style="width:100%; gap:.7rem;">
+                    <input type="hidden" name="generator_type" value="scenario">
+                    <input type="hidden" name="active_tab" value="generate">
+
+                    <div>
+                        <label class="form-label">Имя датасета</label>
+                        <input class="form-control form-control-sm" name="dataset_name" id="datasetName" value="gaussian_dataset" required>
+                    </div>
+
+                    <div>
+                        <label class="form-label">Сценарий</label>
+                        <div class="scenario-list">
+                            <label class="scenario-card"><input type="radio" name="scenario" value="gaussian" checked>
+                                <div><div class="scenario-title">Простые гауссовы кластеры</div><div class="scenario-desc">Базовая проверка: округлые, хорошо разделимые группы.</div></div></label>
+                            <label class="scenario-card"><input type="radio" name="scenario" value="overlap">
+                                <div><div class="scenario-title">С перекрытием</div><div class="scenario-desc">Кластеры частично накладываются — проверка устойчивости.</div></div></label>
+                            <label class="scenario-card"><input type="radio" name="scenario" value="elongated">
+                                <div><div class="scenario-title">Вытянутые кластеры</div><div class="scenario-desc">Эллипсы с большим отношением осей — тест на форму.</div></div></label>
+                            <label class="scenario-card"><input type="radio" name="scenario" value="density">
+                                <div><div class="scenario-title">Сложная плотность и форма</div><div class="scenario-desc">Ветвления, шум, неоднородная плотность.</div></div></label>
+                            <label class="scenario-card"><input type="radio" name="scenario" value="highdim">
+                                <div><div class="scenario-title">Высокая размерность</div><div class="scenario-desc">d ≫ 2, визуализация — проекция в две главные компоненты.</div></div></label>
+                            <label class="scenario-card"><input type="radio" name="scenario" value="imbalance">
+                                <div><div class="scenario-title">Несбалансированные размеры</div><div class="scenario-desc">Один кластер заметно крупнее остальных.</div></div></label>
+                        </div>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-6"><label class="form-label">Объектов</label><input class="form-control form-control-sm" name="n_samples" id="nSamples" type="number" value="400" min="50" max="1500" step="50"></div>
+                        <div class="col-6"><label class="form-label">Кластеров</label><input class="form-control form-control-sm" name="n_clusters" id="nClusters" type="number" value="4" min="2" max="20"></div>
+                        <div class="col-6"><label class="form-label">Размерность</label><input class="form-control form-control-sm" name="dim" id="dim" type="number" value="2" min="2" max="64"></div>
+                        <div class="col-6"><label class="form-label">Зерно</label><input class="form-control form-control-sm" name="seed" id="seed" type="number" value="19"></div>
+                        <div class="col-12">
+                            <label class="form-label">Сложность</label>
+                            <div class="difficulty-group" role="radiogroup">
+                                <label><input type="radio" name="difficulty" value="easy"><span>Легко</span></label>
+                                <label><input type="radio" name="difficulty" value="medium" checked><span>Средне</span></label>
+                                <label><input type="radio" name="difficulty" value="hard"><span>Сложно</span></label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <details class="gen-advanced">
+                        <summary>Базовые разбиения</summary>
+                        <div class="row g-2 mt-1">
+                            <div class="col-6"><label class="form-label">Кол-во</label><input class="form-control form-control-sm" name="base_clusterings" type="number" value="30" min="1"></div>
+                            <div class="col-6"><label class="form-label">Стратегия</label><select class="form-select form-select-sm" name="base_strategy"><option value="mixed">mixed</option><option value="kmeans">kmeans</option><option value="hierarchical">hierarchical</option></select></div>
+                            <div class="col-6"><label class="form-label">k мин.</label><input class="form-control form-control-sm" name="base_k_min" type="number" value="2" min="2"></div>
+                            <div class="col-6"><label class="form-label">k макс.</label><input class="form-control form-control-sm" name="base_k_max" type="number" value="8" min="2"></div>
+                        </div>
+                    </details>
+
+                    <div class="d-flex gap-2 mt-auto">
+                        <button type="button" id="previewBtn" class="btn btn-outline-dark flex-grow-1">Обновить</button>
+                        <button type="submit" class="btn btn-primary flex-grow-1">Сохранить</button>
+                    </div>
+
+                    {% if generation_result and generation_result.error %}
+                    <div class="alert alert-danger py-2 px-3 mb-0" style="font-size:.85rem;">{{ generation_result.error }}</div>
+                    {% elif generation_result and generation_result.message %}
+                    <div class="alert alert-success py-2 px-3 mb-0" style="font-size:.85rem;">
+                        <div class="fw-bold mb-1">Датасет сохранён</div>
+                        <div>Файл: <span class="small-mono">datasets/{{ generation_result.file }}</span></div>
+                        <div class="section-note" style="font-size:.78rem;">X: {{ generation_result.x_shape }} · members: {{ generation_result.members_shape }}</div>
+                        <div class="mt-1 d-flex gap-2">
+                            <a href="{{ url_for('test_page') }}?dataset={{ generation_result.dataset_id }}" class="btn btn-primary btn-sm">Открыть эксперимент</a>
+                            <button type="button" class="btn btn-outline-dark btn-sm" data-bs-toggle="tab" data-bs-target="#tab-list">К каталогу</button>
+                        </div>
+                    </div>
+                    {% endif %}
+                </form>
+            </div>
+
+            <div class="col-xxl-9 col-xl-8 col-lg-7 d-flex flex-column" style="gap:.7rem;">
+                <div class="card-panel p-3" style="flex:1 1 auto; min-height:340px; display:flex; flex-direction:column;">
+                    <div class="d-flex justify-content-between align-items-center mb-2" style="gap:.75rem;">
+                        <h2 class="h6 mb-0">Превью кластеров</h2>
+                        <div id="previewMeta" class="section-note" style="font-size:.78rem;">—</div>
+                    </div>
+                    <div id="plotArea" style="flex:1 1 auto; min-height:300px; position:relative;">
+                        <div id="plotEmpty" class="plot-empty">Нажмите «Обновить», чтобы увидеть кластеры</div>
+                        <div id="plot" style="width:100%; height:100%;"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <div class="tab-pane fade" id="tab-list" role="tabpanel">
+        <div class="card-panel p-3" style="height:100%; display:flex; flex-direction:column; gap:.6rem;">
+            <div class="d-flex justify-content-between align-items-center">
+                <h2 class="h6 mb-0">Каталог датасетов</h2>
+                <div class="text-secondary" style="font-size:.85rem;">Всего: {{ dataset_count }}</div>
+            </div>
+            <div class="row g-2" style="overflow-y:auto; flex:1 1 auto; min-height:0; align-content:flex-start;">
+                {% for ds in datasets %}
+                <div class="col-md-6 col-xl-4">
+                    <div class="list-card">
+                        <div class="fw-bold mb-1" style="font-size:.92rem;">{{ ds.name }}</div>
+                        <div class="section-note mb-1" style="font-size:.78rem;">{{ ds.suffix }} · {{ ds.size_kb }} KB</div>
+                        {% if ds.x_shape %}<div style="font-size:.8rem;">X: <span class="small-mono">{{ ds.x_shape }}</span></div>{% endif %}
+                        {% if ds.gt_shape %}<div style="font-size:.8rem;">gt: <span class="small-mono">{{ ds.gt_shape }}</span></div>{% endif %}
+                        {% if ds.members_shape %}<div style="font-size:.8rem;">members: <span class="small-mono">{{ ds.members_shape }}</span></div>{% endif %}
+                        {% if ds.n_classes %}<div style="font-size:.8rem;">Классов: <span class="small-mono">{{ ds.n_classes }}</span></div>{% endif %}
+                        <div class="mt-2 d-flex gap-2">
+                            <a href="{{ url_for('test_page') }}?dataset={{ ds.name.rsplit('.', 1)[0] }}" class="btn btn-sm btn-primary">Эксперимент</a>
+                            <button class="btn btn-outline-dark btn-sm ai-agent-btn" type="button" data-dataset="{{ ds.name.rsplit('.', 1)[0] }}">Анализ</button>
+                        </div>
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-12">
+                    <div class="list-card section-note">Пока датасетов нет. Перейдите на вкладку «Загрузить» или «Сгенерировать».</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
 </div>
 
-<section class="row g-3" style="flex:1 1 auto;min-height:0;overflow:hidden;">
-    <div class="col-lg-4 d-flex flex-column" style="min-height:0;">
-        <div class="card-panel p-3 d-flex flex-column" style="flex:1;min-height:0;overflow-y:auto;">
-            <h2 class="h5 mb-2">Загрузка файла</h2>
-            {% if demo_mode %}
-            <div class="alert alert-warning py-2 px-3 mb-2">В публичной демонстрационной версии загрузка новых датасетов отключена.</div>
-            {% endif %}
-            <form method="post" enctype="multipart/form-data">
-                <div class="mb-2">
-                    <label class="form-label">Файл датасета</label>
-                    <input class="form-control form-control-sm" type="file" name="dataset_file" accept=".npz,.mat,.csv,.tsv,.txt,.json" required {% if demo_mode %}disabled{% endif %}>
-                </div>
-                <div class="tab-caption mb-2" style="font-size:.8rem;">Для обычного датасета (только <span class="small-mono">X</span> и <span class="small-mono">gt</span>) — параметры построения ансамбля:</div>
-                <div class="row g-2 mb-2">
-                    <div class="col-6">
-                        <label class="form-label">Базовых кластеризаций</label>
-                        <input class="form-control form-control-sm" name="upload_base_clusterings" type="number" value="30" min="1" {% if demo_mode %}disabled{% endif %}>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Метод ансамбля</label>
-                        <select class="form-select form-select-sm" name="upload_base_strategy" {% if demo_mode %}disabled{% endif %}>
-                            <option value="mixed">mixed</option>
-                            <option value="kmeans">kmeans</option>
-                            <option value="hierarchical">hierarchical</option>
-                        </select>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Минимальное k</label>
-                        <input class="form-control form-control-sm" name="upload_base_k_min" type="number" value="2" min="2" {% if demo_mode %}disabled{% endif %}>
-                    </div>
-                    <div class="col-6">
-                        <label class="form-label">Максимальное k</label>
-                        <input class="form-control form-control-sm" name="upload_base_k_max" type="number" value="8" min="2" {% if demo_mode %}disabled{% endif %}>
-                    </div>
-                </div>
-                <button class="btn btn-primary btn-sm w-100">Загрузить датасет</button>
-            </form>
-            {% if upload_message %}
-            <div class="alert alert-info mt-2 mb-0 py-2 px-3">{{ upload_message }}</div>
-            {% endif %}
-        </div>
-    </div>
+<style>
+    .scenario-list { display: flex; flex-direction: column; gap: .4rem; }
+    .scenario-card {
+        display: flex; align-items: flex-start; gap: .55rem;
+        border: 1px solid var(--line); border-radius: 14px;
+        padding: .55rem .7rem; cursor: pointer; background: #fff;
+        transition: border-color .15s, background-color .15s, box-shadow .15s;
+    }
+    .scenario-card input { margin-top: .22rem; accent-color: var(--ink); }
+    .scenario-card:hover { border-color: #bdbdb5; background: var(--surface-muted); }
+    .scenario-card:has(input:checked) { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(16,16,16,.08); background: #fff; }
+    .scenario-title { font-weight: 700; font-size: .87rem; letter-spacing: -.02em; }
+    .scenario-desc  { color: var(--ink-muted); font-size: .78rem; line-height: 1.3; }
+    .difficulty-group { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: .35rem; }
+    .difficulty-group label {
+        position: relative; cursor: pointer;
+        border: 1px solid var(--line); border-radius: 999px;
+        padding: .42rem .55rem; text-align: center;
+        font-size: .82rem; font-weight: 650; background: #fff;
+    }
+    .difficulty-group input { position: absolute; opacity: 0; pointer-events: none; }
+    .difficulty-group label:has(input:checked) { background: var(--ink); color: #fff; border-color: var(--ink); }
+    .gen-advanced > summary { cursor: pointer; font-size: .85rem; font-weight: 700; padding: .35rem 0 .6rem; list-style: none; color: var(--ink); border-top: 1px solid var(--line); padding-top: .6rem; }
+    .gen-advanced > summary::-webkit-details-marker { display: none; }
+    .gen-advanced > summary::after { content: "+"; float: right; font-weight: 700; }
+    .gen-advanced[open] > summary::after { content: "−"; }
+    .plot-empty {
+        position: absolute; inset: 0;
+        display: flex; align-items: center; justify-content: center;
+        color: var(--ink-muted); font-size: .9rem;
+        border: 1px dashed var(--line); border-radius: 14px;
+        background: var(--surface-muted);
+    }
+    .tab-content > .tab-pane { padding-top: .75rem; height: 100%; }
+    .tab-content > .tab-pane > section { height: 100%; }
+    .stat-label { color: var(--ink-muted); font-size: .68rem; font-weight: 750; letter-spacing: .08em; margin-bottom: .25rem; text-transform: uppercase; }
+</style>
 
-    <div class="col-lg-8 d-flex flex-column" style="min-height:0;">
-        <div class="card-panel p-3 d-flex flex-column" style="flex:1;min-height:0;">
-
-            <!-- Список датасетов -->
-            <div id="datasets-view" class="d-flex flex-column" style="flex:1;min-height:0;">
-                <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
-                    <h2 class="h5 mb-0">Доступные датасеты</h2>
-                    <div class="text-secondary" style="font-size:.85rem;">Всего: {{ dataset_count }}</div>
-                </div>
-                <div class="row g-2" style="overflow-y:auto;flex:1;min-height:0;align-content:flex-start;">
-                    {% for ds in datasets %}
-                    <div class="col-md-6">
-                        <div class="list-card">
-                            <div class="fw-bold mb-1" style="font-size:.9rem;">{{ ds.name }}</div>
-                            <div class="section-note mb-1" style="font-size:.8rem;">{{ ds.suffix }}, {{ ds.size_kb }} KB</div>
-                            {% if ds.members_shape %}<div style="font-size:.82rem;">members: <span class="small-mono">{{ ds.members_shape }}</span></div>{% endif %}
-                            {% if ds.x_shape %}<div style="font-size:.82rem;">X: <span class="small-mono">{{ ds.x_shape }}</span></div>{% endif %}
-                            {% if ds.gt_shape %}<div style="font-size:.82rem;">gt: <span class="small-mono">{{ ds.gt_shape }}</span></div>{% endif %}
-                            {% if ds.n_classes %}<div style="font-size:.82rem;">Классов: <span class="small-mono">{{ ds.n_classes }}</span></div>{% endif %}
-                            <a href="{{ url_for('test_page') }}?dataset={{ ds.name.rsplit('.', 1)[0] }}" class="btn btn-sm btn-primary mt-2 me-1">→ Тест</a>
-                            <button class="btn btn-outline-dark btn-sm mt-2 ai-agent-btn" type="button" data-dataset="{{ ds.name.rsplit('.', 1)[0] }}">ИИ-анализ</button>
-                        </div>
-                    </div>
-                    {% else %}
-                    <div class="col-12">
-                        <div class="list-card">
-                            <div class="section-note">Пока датасетов нет. Можно загрузить файл или перейти на страницу генерации синтетических данных.</div>
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-
-            <!-- ИИ-анализ (переключается вместо списка) -->
-            <div id="ai-agent-view" class="d-flex flex-column" style="flex:1;min-height:0;display:none;">
-                <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
-                    <div>
-                        <div class="page-kicker mb-1">ИИ-агент интерпретации</div>
-                        <h2 class="h5 mb-0" id="ai-agent-title">Анализ датасета</h2>
-                    </div>
-                    <button class="btn btn-outline-secondary btn-sm" type="button" id="ai-agent-close">← Назад</button>
-                </div>
-                <div class="row g-2" style="overflow-y:auto;flex:1;min-height:0;align-content:flex-start;">
-
-                    <!-- Grok explanation (full width, top) -->
-                    <div class="col-12" id="grok-block" style="display:none;">
-                        <div class="list-card" style="border-left:3px solid #7c4dff;">
-                            <div class="d-flex align-items-center gap-2 mb-2">
-                                <span style="font-size:.85rem;font-weight:600;">🤖 Grok AI — объяснение</span>
-                                <span class="badge" style="background:#7c4dff;font-size:.7rem;">LLM</span>
-                            </div>
-                            <div style="font-size:.84rem;white-space:pre-wrap;line-height:1.55;" id="grok-text"></div>
-                        </div>
-                    </div>
-
-                    <!-- Smart recommendation: best algorithm + SDGCA params -->
-                    <div class="col-lg-5">
-                        <div class="list-card">
-                            <div class="fw-bold mb-2" style="font-size:.85rem;">Рекомендация алгоритма</div>
-                            <div id="smart-best-algo" class="mb-2" style="font-size:.84rem;"></div>
-                            <div class="fw-bold mb-1" style="font-size:.83rem;">Параметры SDGCA (умный подбор)</div>
-                            <pre class="small-mono mb-1" style="font-size:.78rem;" id="smart-sdgca-params"></pre>
-                            <div style="font-size:.78rem;color:#888;" id="smart-paper-match"></div>
-                        </div>
-                    </div>
-
-                    <!-- Algorithm ranking -->
-                    <div class="col-lg-7">
-                        <div class="list-card">
-                            <div class="fw-bold mb-2" style="font-size:.85rem;">Ранжирование алгоритмов</div>
-                            <div id="smart-ranking" style="font-size:.82rem;"></div>
-                        </div>
-                    </div>
-
-                    <!-- Local agent summary + params -->
-                    <div class="col-lg-5">
-                        <div class="list-card">
-                            <div class="fw-bold mb-1" style="font-size:.85rem;">Краткий вывод (локальный агент)</div>
-                            <div class="section-note" style="font-size:.83rem;" id="ai-agent-summary"></div>
-                        </div>
-                    </div>
-                    <div class="col-lg-7">
-                        <div class="list-card">
-                            <div class="fw-bold mb-1" style="font-size:.85rem;">Рекомендованные параметры</div>
-                            <pre class="small-mono mb-0" style="font-size:.78rem;" id="ai-agent-params"></pre>
-                        </div>
-                    </div>
-
-                    <!-- Findings + warnings -->
-                    <div class="col-lg-6">
-                        <div class="list-card">
-                            <div class="fw-bold mb-1" style="font-size:.85rem;">Что агент увидел</div>
-                            <ul class="section-note mb-0" style="font-size:.83rem;" id="ai-agent-findings"></ul>
-                        </div>
-                    </div>
-                    <div class="col-lg-6">
-                        <div class="list-card">
-                            <div class="fw-bold mb-1" style="font-size:.85rem;">Предупреждения</div>
-                            <ul class="section-note mb-0" style="font-size:.83rem;" id="ai-agent-warnings"></ul>
-                        </div>
-                    </div>
-
-                    <!-- Evidence metrics -->
-                    <div class="col-12">
-                        <div class="list-card">
-                            <div class="fw-bold mb-1" style="font-size:.85rem;">Метрики, на которые опирался агент</div>
-                            <pre class="small-mono mb-1" style="font-size:.78rem;" id="ai-agent-evidence"></pre>
-                            <div class="section-note" style="font-size:.83rem;" id="ai-agent-note"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-    </div>
-</section>
-
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-    const datasetsView = document.getElementById("datasets-view");
-    const aiView = document.getElementById("ai-agent-view");
-    const title = document.getElementById("ai-agent-title");
-    const summary = document.getElementById("ai-agent-summary");
-    const params = document.getElementById("ai-agent-params");
-    const findings = document.getElementById("ai-agent-findings");
-    const warnings = document.getElementById("ai-agent-warnings");
-    const evidence = document.getElementById("ai-agent-evidence");
-    const note = document.getElementById("ai-agent-note");
+(function () {
+    'use strict';
+    var PREVIEW_URL = {{ url_for('api_generate_preview') | tojson }};
+    var PALETTE = ['#101010', '#d4604a', '#3b6bb4', '#6da66a', '#b58a3c', '#7e54a8', '#2f8f8f', '#c64f7f', '#8a8a48', '#4f4f4f'];
+    var form  = document.getElementById('genForm');
+    var btn   = document.getElementById('previewBtn');
+    var meta  = document.getElementById('previewMeta');
+    var empty = document.getElementById('plotEmpty');
+    var plotEl = document.getElementById('plot');
+    var name  = document.getElementById('datasetName');
+    var SUGGEST = {
+        gaussian: 'gaussian_dataset', overlap: 'overlapping_dataset',
+        elongated: 'elongated_dataset', density: 'density_dataset',
+        highdim: 'highdim_dataset', imbalance: 'imbalanced_dataset',
+    };
 
-    // Smart rec elements
-    const grokBlock       = document.getElementById("grok-block");
-    const grokText        = document.getElementById("grok-text");
-    const smartBestAlgo   = document.getElementById("smart-best-algo");
-    const smartSdgcaParams= document.getElementById("smart-sdgca-params");
-    const smartPaperMatch = document.getElementById("smart-paper-match");
-    const smartRanking    = document.getElementById("smart-ranking");
-
-    function showAI() {
-        datasetsView.style.display = "none";
-        aiView.style.display = "flex";
+    function payload() {
+        var fd = new FormData(form);
+        return {
+            scenario: fd.get('scenario') || 'gaussian',
+            n_samples: parseInt(fd.get('n_samples'), 10),
+            n_clusters: parseInt(fd.get('n_clusters'), 10),
+            dim: parseInt(fd.get('dim'), 10),
+            difficulty: fd.get('difficulty') || 'medium',
+            seed: parseInt(fd.get('seed'), 10),
+        };
     }
-    function showDatasets() {
-        aiView.style.display = "none";
-        datasetsView.style.display = "flex";
-    }
+    function setMeta(text, ok) { meta.textContent = text; meta.style.color = ok ? 'var(--ink-muted)' : '#9b3030'; }
 
-    function fillList(node, items, emptyText) {
-        node.innerHTML = "";
-        const values = items && items.length ? items : [emptyText];
-        values.forEach((item) => {
-            const li = document.createElement("li");
-            li.textContent = item;
-            node.appendChild(li);
+    function draw(resp) {
+        if (empty) empty.style.display = 'none';
+        var groups = {};
+        for (var i = 0; i < resp.x.length; i++) {
+            var k = resp.labels[i];
+            (groups[k] = groups[k] || { x: [], y: [] });
+            groups[k].x.push(resp.x[i]); groups[k].y.push(resp.y[i]);
+        }
+        var traces = Object.keys(groups).sort(function (a, b) { return +a - +b; }).map(function (k, idx) {
+            return {
+                type: 'scattergl', mode: 'markers',
+                x: groups[k].x, y: groups[k].y,
+                name: 'Класс ' + k,
+                marker: { size: 5, color: PALETTE[idx % PALETTE.length], opacity: 0.85, line: { width: 0 } },
+                hovertemplate: 'x=%{x:.2f}, y=%{y:.2f}<extra>Класс ' + k + '</extra>',
+            };
         });
+        var layout = {
+            margin: { l: 36, r: 12, t: 8, b: 30 },
+            paper_bgcolor: '#fff', plot_bgcolor: '#fff',
+            font: { family: 'Inter, system-ui, sans-serif', size: 11, color: '#101010' },
+            xaxis: { zeroline: false, gridcolor: '#ececea', linecolor: '#deded8' },
+            yaxis: { zeroline: false, gridcolor: '#ececea', linecolor: '#deded8' },
+            showlegend: traces.length <= 12, legend: { orientation: 'h', y: -0.15 },
+        };
+        Plotly.react(plotEl, traces, layout, { displaylogo: false, responsive: true, scrollZoom: true });
+        var note = resp.n + ' точек · ' + resp.k + ' классов · d=' + resp.dim;
+        if (resp.projected) note += ' · проекция (PCA-2)';
+        setMeta(note, true);
     }
 
-    function renderSmartRec(smartRec) {
-        if (!smartRec) return;
-
-        // Best algorithm badge
-        const bestLabel = smartRec.best_algorithm_label || smartRec.best_algorithm || "—";
-        smartBestAlgo.innerHTML =
-            `<span style="display:inline-block;background:#e8f5e9;border:1px solid #4caf50;` +
-            `border-radius:4px;padding:3px 10px;font-weight:600;color:#2e7d32;">` +
-            `✓ ${bestLabel}</span>` +
-            `<div style="margin-top:6px;color:#555;font-size:.8rem;">` +
-            (smartRec.reasoning || []).map(r => `• ${r}`).join("<br>") +
-            `</div>`;
-
-        // SDGCA params
-        const sp = smartRec.sdgca_params || {};
-        smartSdgcaParams.textContent =
-            `lambda (λ) = ${sp.lam ?? "?"}\n` +
-            `eta   (η)  = ${sp.eta ?? "?"}\n` +
-            `theta (θ)  = ${sp.theta ?? "?"}`;
-
-        // Nearest paper match
-        const top = (smartRec.paper_matches || [])[0];
-        if (top) {
-            smartPaperMatch.textContent =
-                `Эталон из статьи: ${top.reference_dataset} ` +
-                `(n=${top.ref_n}, K=${top.ref_K}, d=${top.ref_d}, dist=${top.distance})`;
-        }
-
-        // Algorithm ranking table
-        const ranking = smartRec.algorithm_ranking || [];
-        if (ranking.length) {
-            const rows = ranking.map((r, i) => {
-                const bar = Math.round((r.score / (ranking[0].score || 1)) * 100);
-                const color = i === 0 ? "#4caf50" : i === 1 ? "#2196f3" : "#9e9e9e";
-                return `<div style="margin-bottom:8px;">` +
-                    `<div style="display:flex;align-items:center;gap:8px;">` +
-                    `<span style="min-width:20px;font-weight:600;color:${color};">${i+1}.</span>` +
-                    `<span style="flex:1;font-weight:${i===0?'600':'400'};">${r.label}</span>` +
-                    `<span style="color:#666;font-size:.78rem;">score: ${r.score}</span>` +
-                    `</div>` +
-                    `<div style="height:4px;border-radius:2px;background:#f0f0f0;margin:2px 0 0 28px;">` +
-                    `<div style="height:4px;border-radius:2px;background:${color};width:${bar}%;"></div>` +
-                    `</div>` +
-                    (r.reasons && r.reasons.length ?
-                        `<div style="color:#777;font-size:.77rem;margin-left:28px;">` +
-                        r.reasons.slice(0, 2).join(" • ") + `</div>` : "") +
-                    `</div>`;
-            }).join("");
-            smartRanking.innerHTML = rows;
-        }
-    }
-
-    document.querySelectorAll(".ai-agent-btn").forEach((button) => {
-        button.addEventListener("click", async () => {
-            const dataset = button.dataset.dataset;
-            showAI();
-            title.textContent = `Анализ: ${dataset}`;
-            summary.textContent = "Агент считает диагностику... (Grok LLM запрашивается)";
-            params.textContent = "";
-            findings.innerHTML = "";
-            warnings.innerHTML = "";
-            evidence.textContent = "";
-            note.textContent = "";
-            grokBlock.style.display = "none";
-            grokText.textContent = "";
-            smartBestAlgo.innerHTML = "";
-            smartSdgcaParams.textContent = "";
-            smartPaperMatch.textContent = "";
-            smartRanking.innerHTML = "";
-
-            try {
-                const response = await fetch(`/api/ai-agent/dataset/${encodeURIComponent(dataset)}`);
-                const payload = await response.json();
-                if (!response.ok || payload.error) throw new Error(payload.error || "AI agent request failed");
-
-                // Local rule-based agent
-                const agent = payload.agent;
-                summary.textContent = agent.summary || "Нет краткого вывода.";
-                params.textContent = JSON.stringify(agent.recommended_parameters || {}, null, 2);
-                fillList(findings, agent.findings, "Нет дополнительных наблюдений.");
-                fillList(warnings, agent.warnings, "Критичных предупреждений нет.");
-                evidence.textContent = JSON.stringify(agent.evidence || {}, null, 2);
-                note.textContent = agent.protocol_note || "";
-
-                // Smart recommendation (PAPER_GRID nearest-neighbor)
-                renderSmartRec(payload.smart_rec);
-
-                // Grok LLM explanation
-                if (payload.grok_explanation) {
-                    grokText.textContent = payload.grok_explanation;
-                    grokBlock.style.display = "block";
-                } else if (payload.grok_error) {
-                    grokText.textContent = `⚠ Grok недоступен: ${payload.grok_error}`;
-                    grokBlock.style.display = "block";
-                    grokBlock.querySelector(".list-card").style.borderColor = "#ff9800";
-                }
-
-            } catch (error) {
-                summary.textContent = `Ошибка: ${error.message}`;
+    async function preview() {
+        if (!btn) return;
+        btn.disabled = true;
+        var orig = btn.textContent;
+        btn.textContent = 'Считаю…';
+        try {
+            var resp = await fetch(PREVIEW_URL, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload()),
+            });
+            var raw = await resp.text();
+            var ct = (resp.headers.get('content-type') || '').toLowerCase();
+            if (!ct.includes('application/json')) {
+                setMeta('Ответ не JSON (HTTP ' + resp.status + '). Откройте приложение по тому же URL, где запущен сервер Flask.', false);
+                return;
             }
-        });
+            var data = JSON.parse(raw);
+            if (data.error) { setMeta(data.error, false); return; }
+            if (!resp.ok) { setMeta('HTTP ' + resp.status, false); return; }
+            draw(data);
+        } catch (e) { setMeta('Ошибка: ' + e.message, false); }
+        finally { btn.disabled = false; btn.textContent = orig; }
+    }
+
+    if (btn) btn.addEventListener('click', preview);
+    if (form) form.addEventListener('change', function (ev) {
+        if (ev.target && ev.target.name === 'scenario') {
+            name.value = SUGGEST[ev.target.value] || name.value;
+        }
     });
 
-    document.getElementById("ai-agent-close").addEventListener("click", showDatasets);
-});
+    var genTab = document.getElementById('generate-tab');
+    if (genTab) {
+        genTab.addEventListener('shown.bs.tab', function () {
+            if (plotEl && !plotEl.dataset.loaded) {
+                plotEl.dataset.loaded = '1';
+                preview();
+            } else if (plotEl && plotEl.data) {
+                Plotly.Plots.resize(plotEl);
+            }
+        });
+    }
+    if (document.getElementById('tab-generate').classList.contains('active')) {
+        window.addEventListener('load', function () { setTimeout(preview, 120); });
+    }
+    window.addEventListener('resize', function () { if (plotEl && plotEl.data) Plotly.Plots.resize(plotEl); });
+
+    document.querySelectorAll('.ai-agent-btn').forEach(function (b) {
+        b.addEventListener('click', function () {
+            var ds = b.dataset.dataset;
+            if (window.aiWidget) window.aiWidget.analyzeDataset(ds);
+        });
+    });
+})();
 </script>
+
+{% if upload_dataset_id %}
+<script>window.AI_AUTOLOAD = { dataset: "{{ upload_dataset_id }}" };</script>
+{% endif %}
 {% endblock %}

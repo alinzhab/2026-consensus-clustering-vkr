@@ -1033,58 +1033,56 @@ def _extract_algorithm_kwargs(algorithm_name, dataset_name, form):
 @app.route("/test", methods=["GET", "POST"])
 def test_page():
     ensure_dirs()
-    run_result = None
+    run_results = []
     selected_dataset = request.args.get("dataset", "")
     if request.method == "POST":
-        if DEMO_MODE:
-            run_result = {"error": "В демонстрационной версии запуск алгоритмов отключен. Полное тестирование и тяжелые вычисления выполняются локально, а на сайте показываются уже сохраненные результаты."}
-            context = build_base_context("lab")
-            context["run_result"] = run_result
-            return render_template("test.html", **context)
         dataset_name = request.form.get("selected_dataset")
         selected_dataset = dataset_name or selected_dataset
-        algorithm_name = request.form.get("algorithm")
-        try:
-            from algorithms_base import AlgorithmRegistry
-
-            dataset_path = find_dataset_path(dataset_name)
-            seed = int(request.form.get("seed", 19))
-            m = int(request.form.get("m", 20))
-            runs = int(request.form.get("runs", 5))
-            method = request.form.get("method", "average")
-            algo_kwargs = _extract_algorithm_kwargs(algorithm_name, dataset_name, request.form)
-
-            algo = AlgorithmRegistry.get(algorithm_name)
-            cr = algo.run(dataset_path, m=m, runs=runs, method=method, seed=seed, **algo_kwargs)
-
-            run_result = {
-                "dataset": dataset_name,
-                "algorithm": algorithm_name,
-                "algorithm_label": ALGORITHM_LABELS.get(algorithm_name, algorithm_name),
-                "method": method,
-                "method_label": METHOD_LABELS.get(method, method),
-                "seed": seed,
-                "m": m,
-                "runs": runs,
-                "nmi_mean": round(cr.nmi_mean, 6),
-                "nmi_std": round(cr.nmi_std, 6),
-                "ari_mean": round(cr.ari_mean, 6),
-                "ari_std": round(cr.ari_std, 6),
-                "f_mean": round(cr.f_mean, 6),
-                "f_std": round(cr.f_std, 6),
-                "created_at": datetime.now().isoformat(timespec="seconds"),
-            }
-            if cr.extra:
-                run_result.update(
-                    _json_safe({k: v for k, v in cr.extra.items() if k != "_extra_per_run"})
-                )
-
-            save_result_record(run_result)
-        except Exception as exc:
-            run_result = {"error": str(exc)}
+        algorithm_names = request.form.getlist("algorithms")
+        if not algorithm_names:
+            algorithm_names = [request.form.get("algorithm", "hierarchical_baseline")]
+        seed = int(request.form.get("seed", 19))
+        m = int(request.form.get("m", 20))
+        runs = int(request.form.get("runs", 5))
+        method = request.form.get("method", "average")
+        from algorithms_base import AlgorithmRegistry
+        dataset_path = find_dataset_path(dataset_name)
+        for algorithm_name in algorithm_names:
+            try:
+                algo_kwargs = _extract_algorithm_kwargs(algorithm_name, dataset_name, request.form)
+                algo = AlgorithmRegistry.get(algorithm_name)
+                cr = algo.run(dataset_path, m=m, runs=runs, method=method, seed=seed, **algo_kwargs)
+                rec = {
+                    "dataset": dataset_name,
+                    "algorithm": algorithm_name,
+                    "algorithm_label": ALGORITHM_LABELS.get(algorithm_name, algorithm_name),
+                    "method": method,
+                    "method_label": METHOD_LABELS.get(method, method),
+                    "seed": seed,
+                    "m": m,
+                    "runs": runs,
+                    "nmi_mean": round(cr.nmi_mean, 6),
+                    "nmi_std": round(cr.nmi_std, 6),
+                    "ari_mean": round(cr.ari_mean, 6),
+                    "ari_std": round(cr.ari_std, 6),
+                    "f_mean": round(cr.f_mean, 6),
+                    "f_std": round(cr.f_std, 6),
+                    "created_at": datetime.now().isoformat(timespec="seconds"),
+                    "error": None,
+                }
+                if cr.extra:
+                    rec.update(_json_safe({k: v for k, v in cr.extra.items() if k != "_extra_per_run"}))
+                save_result_record(rec)
+            except Exception as exc:
+                rec = {
+                    "algorithm": algorithm_name,
+                    "algorithm_label": ALGORITHM_LABELS.get(algorithm_name, algorithm_name),
+                    "error": str(exc),
+                }
+            run_results.append(rec)
 
     context = build_base_context("lab")
-    context["run_result"] = run_result
+    context["run_results"] = run_results
     context["selected_dataset"] = selected_dataset
     return render_template("test.html", **context)
 

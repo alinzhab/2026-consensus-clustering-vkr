@@ -1,0 +1,16 @@
+{
+  "algorithm": "hierarchical_weighted",
+  "variant": "qd",
+  "selection_strategy": "qd",
+  "qd_alpha": 0.5,
+  "linkage": "average",
+  "m": 8,
+  "selected_on": "validation",
+  "selection_metric": "rank",
+  "mean_validation_nmi": 0.9471368171428571,
+  "mean_validation_ari": 0.93349264,
+  "mean_validation_f_score": 0.9452120900000001,
+  "mean_validation_runtime_sec": 0.2581672857142857,
+  "validation_dataset_count": 7,
+  "note": "Global profile selected on dataset-level validation split. Do not tune on test."
+}

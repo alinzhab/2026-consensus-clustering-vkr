@@ -101,18 +101,19 @@
     }
 </style>
 
-<div class="d-flex gap-2" style="flex:0 0 auto;padding-top:.75rem;">
-    <a href="{{ url_for('analytics_page') }}" class="nav-pill" style="font-size:.83rem;">📊 Мои эксперименты</a>
-    <a href="{{ url_for('massive_analytics_page') }}" class="nav-pill active" style="font-size:.83rem;">🔬 Массовый бенчмарк</a>
-</div>
+<ul class="nav nav-tabs" style="flex:0 0 auto; padding-top:.75rem;">
+    <li class="nav-item"><a class="nav-link" href="{{ url_for('results_page') }}">История</a></li>
+    <li class="nav-item"><a class="nav-link" href="{{ url_for('analytics_page') }}">Сравнение</a></li>
+    <li class="nav-item"><a class="nav-link active" href="{{ url_for('massive_analytics_page') }}">Бенчмарк</a></li>
+</ul>
 
 <section class="page-hero massive-wide massive-hero">
     <div class="massive-hero-copy">
-        <span class="page-kicker">Dataset-level protocol</span>
-            <h1 class="massive-hero-title fw-bold mb-3">Single vs consensus analytics</h1>
+        <span class="page-kicker">Бенчмарк</span>
+            <h1 class="massive-hero-title fw-bold mb-3">Консенсус против одиночных алгоритмов</h1>
             <p class="massive-hero-text text-secondary mb-0">
-                Интерактивный разбор: где консенсус кластеризация выигрывает у одиночных алгоритмов,
-                где проигрывает, и насколько цена по runtime оправдана.
+                Где консенсус-кластеризация выигрывает у одиночных алгоритмов,
+                где проигрывает, и оправдана ли цена по времени выполнения.
             </p>
     </div>
     <div class="massive-profile-panel">
@@ -244,7 +245,7 @@ function filteredRows() {
     });
 }
 
-function algorithmLabel(row) {
+function buildAlgorithmCaption(row) {
     const bits = [row.algorithm];
     if (row.variant && row.variant !== "default") bits.push(row.variant);
     if (row.linkage) bits.push(row.linkage);
@@ -255,7 +256,7 @@ function algorithmLabel(row) {
 function renderQualityBar(rows, metric) {
     const grouped = {};
     rows.forEach(row => {
-        const label = algorithmLabel(row);
+        const label = buildAlgorithmCaption(row);
         grouped[label] = grouped[label] || [];
         grouped[label].push(row[metric]);
     });
@@ -306,8 +307,8 @@ function renderDelta(rows, metric) {
 
 function renderHeatmap(rows, metric) {
     const types = unique(rows.map(r => r.dataset_type));
-    const algorithms = unique(rows.map(algorithmLabel));
-    const z = types.map(dtype => algorithms.map(algo => mean(rows.filter(r => r.dataset_type === dtype && algorithmLabel(r) === algo).map(r => r[metric]))));
+    const algorithms = unique(rows.map(buildAlgorithmCaption));
+    const z = types.map(dtype => algorithms.map(algo => mean(rows.filter(r => r.dataset_type === dtype && buildAlgorithmCaption(r) === algo).map(r => r[metric]))));
     Plotly.newPlot("typeHeatmap", [{
         type: "heatmap",
         x: algorithms,
@@ -329,7 +330,7 @@ function renderRuntime(rows) {
         mode: "markers",
         x: rows.map(r => r.n_samples),
         y: rows.map(r => r.runtime_sec),
-        text: rows.map(r => `${r.dataset_id}<br>${algorithmLabel(r)}`),
+        text: rows.map(r => `${r.dataset_id}<br>${buildAlgorithmCaption(r)}`),
         marker: {size: 8, color: rows.map(r => r.algorithm_family === "consensus" ? "#222" : "#777")}
     }], {
         title: "Runtime vs n_samples",
@@ -345,7 +346,7 @@ function renderTradeoff(rows, metric) {
         mode: "markers",
         x: rows.map(r => r.runtime_sec),
         y: rows.map(r => r[metric]),
-        text: rows.map(r => `${r.dataset_id}<br>${algorithmLabel(r)}`),
+        text: rows.map(r => `${r.dataset_id}<br>${buildAlgorithmCaption(r)}`),
         marker: {size: 8, color: rows.map(r => r.algorithm_family === "consensus" ? "#1b7f5c" : "#5b6470")}
     }], {
         title: "Runtime-quality trade-off",

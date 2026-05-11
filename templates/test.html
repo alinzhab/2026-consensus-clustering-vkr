@@ -2,104 +2,72 @@
 
 {% block content %}
 <section class="page-hero">
-    <div class="page-kicker">Страница тестирования</div>
-    <h1 class="display-5 fw-bold mb-1">Запуск алгоритмов и сравнение метрик</h1>
-    <p class="lead text-secondary mb-0">Выберите датасет, настройте параметры и запустите один из реализованных алгоритмов консенсус кластеризации. Результаты сохраняются в журнале.</p>
+    <div class="page-kicker">Эксперимент</div>
+    <h1 class="display-5 fw-bold mb-1">Запуск и сравнение алгоритмов</h1>
+    <p class="lead text-secondary mb-0">Выберите датасет, отметьте один или несколько алгоритмов и запустите — результаты появятся в сравнительной таблице.</p>
 </section>
 
 <section class="row g-3" style="flex:1 1 auto;min-height:0;overflow:hidden;">
-    <!-- Левая колонка: алгоритмы + сценарий -->
     <div class="col-lg-4 d-flex flex-column" style="min-height:0;">
         <div class="card-panel p-3 d-flex flex-column" style="flex:1;min-height:0;overflow-y:auto;">
-            <h2 class="h5 mb-2">Алгоритмы системы</h2>
-            <div class="row g-2">
-                <div class="col-12">
-                    <div class="list-card">
-                        <div class="fw-bold mb-1" style="font-size:.9rem;">Иерархическая базовая версия</div>
-                        <div class="section-note" style="font-size:.82rem;">Строит обычную матрицу совместной встречаемости и применяет иерархическую кластеризацию на финальном шаге.</div>
-                    </div>
-                </div>
-                <div class="col-12">
-                    <div class="list-card">
-                        <div class="fw-bold mb-1" style="font-size:.9rem;">Иерархическая взвешенная версия</div>
-                        <div class="section-note" style="font-size:.82rem;">Учитывает неодинаковую важность базовых разбиений и формирует взвешенную итоговую матрицу сходства.</div>
-                    </div>
-                </div>
-                <div class="col-12">
-                    <div class="list-card">
-                        <div class="fw-bold mb-1" style="font-size:.9rem;">SDGCA</div>
-                        <div class="section-note" style="font-size:.82rem;">Использует информацию о сходстве и различии между объектами для построения итоговой матрицы консенсуса.</div>
-                    </div>
-                </div>
-                <div class="col-12">
-                    <div class="list-card">
-                        <div class="fw-bold mb-1" style="font-size:.9rem;">SDGCA, модифицированная версия</div>
-                        <div class="section-note" style="font-size:.82rem;">Использует нечёткое энтропийное взвешивание кластеров и графовую диффузию вместо случайных блужданий.</div>
-                    </div>
-                </div>
-            </div>
+            <h2 class="h5 mb-3">Параметры запуска</h2>
+            <form method="post" id="experiment-form">
 
-            <div class="mt-3 pt-2" style="border-top:1px solid var(--line);">
-                <div class="section-note" style="font-size:.8rem;line-height:1.6;">
-                    <strong style="font-size:.82rem;color:var(--ink);">Сценарий:</strong>
-                    загрузите датасет → выберите алгоритм → настройте параметры (<span class="small-mono">m=20</span>, <span class="small-mono">runs=5</span> для воспроизводимых экспериментов) → запустите → сравните NMI, ARI, F-score на странице Результаты.
+                <div class="mb-3">
+                    <label class="form-label">Датасет</label>
+                    <select class="form-select form-select-sm" name="selected_dataset" required>
+                        {% for ds in runnable_datasets %}
+                        {% set ds_id = ds.name.rsplit('.', 1)[0] %}
+                        <option value="{{ ds_id }}" {% if selected_dataset == ds_id %}selected{% endif %}>
+                            {{ ds_id }}{% if ds.members_shape %} · {{ ds.members_shape }}{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    {% if not runnable_datasets %}
+                    <div class="section-note mt-1" style="font-size:.8rem;">Нет датасетов. Загрузите файл или сгенерируйте на странице Данные.</div>
+                    {% endif %}
                 </div>
-            </div>
-        </div>
-    </div>
 
-    <!-- Правая колонка: форма + результат -->
-    <div class="col-lg-8 d-flex flex-column" style="min-height:0;">
-        <div class="card-panel p-3 d-flex flex-column" style="flex:1;min-height:0;overflow-y:auto;">
-            <h2 class="h5 mb-1">Параметры запуска</h2>
-            <p class="section-note mb-2" style="font-size:.82rem;">Метрики NMI, ARI и F-score. Каждый запуск сохраняется в журнале экспериментов.</p>
-            {% if demo_mode %}
-            <div class="alert alert-warning py-2 px-3 mb-2" style="font-size:.83rem;">
-                Публичная версия работает только как демонстрация интерфейса. Полные запуски выполняются локально.
-            </div>
-            {% endif %}
-            <form method="post">
-                <div class="row g-2">
-                    <div class="col-md-6">
-                        <label class="form-label">Датасет для запуска алгоритма</label>
-                        <select class="form-select form-select-sm" name="selected_dataset" required>
-                            {% for ds in runnable_datasets %}
-                            {% set ds_id = ds.name.rsplit('.', 1)[0] %}
-                            <option value="{{ ds_id }}" {% if selected_dataset == ds_id %}selected{% endif %}>
-                                {{ ds_id }}{% if ds.members_shape %} · members {{ ds.members_shape }}{% endif %}
-                            </option>
-                            {% endfor %}
-                        </select>
-                        <div class="section-note mt-1" style="font-size:.8rem;">
-                            Здесь показываются только подготовленные датасеты с <span class="small-mono">members</span>.
-                            После генерации новый датасет должен появиться в этом списке автоматически.
-                        </div>
-                        {% if not runnable_datasets %}
-                        <div class="section-note mt-1" style="font-size:.8rem;">Нет датасетов с <span class="small-mono">members</span>. Загрузите файл <span class="small-mono">X + gt</span> или сгенерируйте датасет.</div>
-                        {% endif %}
+                <div class="mb-3">
+                    <label class="form-label">Алгоритмы</label>
+                    <div class="d-flex flex-column gap-1">
+                        <label class="d-flex align-items-center gap-2" style="cursor:pointer;">
+                            <input type="checkbox" name="algorithms" value="hierarchical_baseline" class="form-check-input m-0" checked>
+                            <span style="font-size:.88rem;">Иерархическая базовая</span>
+                        </label>
+                        <label class="d-flex align-items-center gap-2" style="cursor:pointer;">
+                            <input type="checkbox" name="algorithms" value="hierarchical_weighted" class="form-check-input m-0">
+                            <span style="font-size:.88rem;">Иерархическая взвешенная</span>
+                        </label>
+                        <label class="d-flex align-items-center gap-2" style="cursor:pointer;">
+                            <input type="checkbox" name="algorithms" value="sdgca" class="form-check-input m-0">
+                            <span style="font-size:.88rem;">SDGCA</span>
+                        </label>
+                        <label class="d-flex align-items-center gap-2" style="cursor:pointer;">
+                            <input type="checkbox" name="algorithms" value="sdgca_modified" class="form-check-input m-0">
+                            <span style="font-size:.88rem;">SDGCA модифицированный</span>
+                        </label>
                     </div>
-                    <div class="col-md-6">
-                        <label class="form-label">Алгоритм</label>
-                        <select class="form-select form-select-sm" name="algorithm" id="algorithm-select">
-                            <option value="hierarchical_baseline">Иерархическая базовая версия</option>
-                            <option value="hierarchical_weighted">Иерархическая взвешенная версия</option>
-                            <option value="sdgca">SDGCA</option>
-                            <option value="sdgca_modified">SDGCA, модифицированная версия</option>
-                        </select>
+                    <div class="d-flex gap-2 mt-2">
+                        <button type="button" class="btn btn-sm" style="font-size:.78rem;padding:.2rem .6rem;border:1px solid var(--line);" onclick="document.querySelectorAll('[name=algorithms]').forEach(c=>c.checked=true)">Все</button>
+                        <button type="button" class="btn btn-sm" style="font-size:.78rem;padding:.2rem .6rem;border:1px solid var(--line);" onclick="document.querySelectorAll('[name=algorithms]').forEach(c=>c.checked=false)">Снять</button>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Начальное значение</label>
-                        <input class="form-control form-control-sm" name="seed" type="number" value="19">
-                    </div>
-                    <div class="col-md-3">
+                </div>
+
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
                         <label class="form-label">Базовых разбиений (m)</label>
                         <input class="form-control form-control-sm" name="m" type="number" value="20" min="2">
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-6">
                         <label class="form-label">Число запусков</label>
                         <input class="form-control form-control-sm" name="runs" type="number" value="5" min="1">
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-6">
+                        <label class="form-label">Seed</label>
+                        <input class="form-control form-control-sm" name="seed" type="number" value="19">
+                    </div>
+                    <div class="col-6">
                         <label class="form-label">Правило объединения</label>
                         <select class="form-select form-select-sm" name="method">
                             <option value="average">average</option>
@@ -110,99 +78,152 @@
                     </div>
                 </div>
 
-                <div class="tab-caption mt-3 mb-2" style="font-size:.8rem;">Параметры иерархической взвешенной версии</div>
-                <div class="row g-2 algorithm-group" data-algorithms="hierarchical_weighted">
-                    <div class="col-md-4">
-                        <label class="form-label">Усиление весов</label>
-                        <input class="form-control form-control-sm" name="sharpen" type="number" step="0.1" value="1.5">
-                    </div>
-                    <div class="col-md-8">
-                        <div class="section-note pt-2" style="font-size:.82rem;">Степень различия между весами базовых разбиений при построении итоговой матрицы.</div>
-                    </div>
-                </div>
-
-                <div class="tab-caption mt-3 mb-2" style="font-size:.8rem;">Параметры базовой версии SDGCA</div>
-                <div class="row g-2 algorithm-group" data-algorithms="sdgca">
-                    <div class="col-md-4">
-                        <label class="form-label">Лямбда</label>
-                        <input class="form-control form-control-sm" name="lambda_" type="number" step="0.01" value="0.09">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Eta</label>
-                        <input class="form-control form-control-sm" name="eta" type="number" step="0.01" value="0.75">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Тета</label>
-                        <input class="form-control form-control-sm" name="theta" type="number" step="0.01" value="0.65">
+                <div class="mb-3" id="sharpen-block">
+                    <div class="tab-caption mb-1" style="font-size:.78rem;">Взвешенная версия</div>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <label class="form-label">Усиление весов</label>
+                            <input class="form-control form-control-sm" name="sharpen" type="number" step="0.1" value="1.5">
+                        </div>
                     </div>
                 </div>
 
-                <div class="tab-caption mt-3 mb-2" style="font-size:.8rem;">Параметры модифицированной версии SDGCA</div>
-                <div class="row g-2 algorithm-group" data-algorithms="sdgca_modified">
-                    <div class="col-md-4">
-                        <label class="form-label">Лямбда</label>
-                        <input class="form-control form-control-sm" name="lambda_mod" type="number" step="0.01" placeholder="по умолчанию">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Eta</label>
-                        <input class="form-control form-control-sm" name="eta_mod" type="number" step="0.01" placeholder="по умолчанию">
-                    </div>
-                    <div class="col-md-4">
-                        <label class="form-label">Тета</label>
-                        <input class="form-control form-control-sm" name="theta_mod" type="number" step="0.01" placeholder="по умолчанию">
-                    </div>
-                    <div class="col-12">
-                        <div class="section-note" style="font-size:.82rem;">Если значения не заданы явно, используются параметры по умолчанию. Настройки графовой диффузии выбираются автоматически.</div>
+                <div class="mb-3" id="sdgca-block">
+                    <div class="tab-caption mb-1" style="font-size:.78rem;">SDGCA</div>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label">λ</label>
+                            <input class="form-control form-control-sm" name="lambda_" type="number" step="0.01" value="0.09">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">η</label>
+                            <input class="form-control form-control-sm" name="eta" type="number" step="0.01" value="0.75">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">θ</label>
+                            <input class="form-control form-control-sm" name="theta" type="number" step="0.01" value="0.65">
+                        </div>
                     </div>
                 </div>
 
-                <button class="btn btn-primary btn-sm mt-3" {% if demo_mode %}disabled{% endif %}>Запустить тестирование</button>
+                <div class="mb-3" id="sdgca-mod-block">
+                    <div class="tab-caption mb-1" style="font-size:.78rem;">SDGCA модифицированный</div>
+                    <div class="row g-2">
+                        <div class="col-4">
+                            <label class="form-label">λ</label>
+                            <input class="form-control form-control-sm" name="lambda_mod" type="number" step="0.01" placeholder="авто">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">η</label>
+                            <input class="form-control form-control-sm" name="eta_mod" type="number" step="0.01" placeholder="авто">
+                        </div>
+                        <div class="col-4">
+                            <label class="form-label">θ</label>
+                            <input class="form-control form-control-sm" name="theta_mod" type="number" step="0.01" placeholder="авто">
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn btn-primary w-100" id="run-btn">Запустить</button>
             </form>
+        </div>
+    </div>
 
-            {% if run_result %}
-            <hr class="my-3">
-            <h2 class="h5 mb-2">Результат запуска</h2>
-            {% if run_result.error %}
-            <div class="alert alert-danger py-2 px-3 mb-0">{{ run_result.error }}</div>
+    <div class="col-lg-8 d-flex flex-column" style="min-height:0;">
+        <div class="card-panel p-3 d-flex flex-column" style="flex:1;min-height:0;overflow-y:auto;">
+
+            {% if run_results %}
+            <h2 class="h5 mb-3">Результаты</h2>
+
+            {% set has_error = run_results | selectattr('error') | list %}
+            {% if has_error %}
+            {% for r in has_error %}
+            <div class="alert alert-danger py-2 px-3 mb-2" style="font-size:.83rem;">
+                <strong>{{ r.algorithm_label }}</strong> — {{ r.error }}
+            </div>
+            {% endfor %}
+            {% endif %}
+
+            {% set ok = run_results | rejectattr('error') | list %}
+            {% if ok %}
+            <div class="table-responsive mb-3">
+                <table class="table table-sm" style="font-size:.87rem;">
+                    <thead>
+                        <tr>
+                            <th>Алгоритм</th>
+                            <th class="text-end">NMI</th>
+                            <th class="text-end text-secondary" style="font-size:.78rem;">±std</th>
+                            <th class="text-end">ARI</th>
+                            <th class="text-end text-secondary" style="font-size:.78rem;">±std</th>
+                            <th class="text-end">F-score</th>
+                            <th class="text-end text-secondary" style="font-size:.78rem;">±std</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% set best_nmi = ok | map(attribute='nmi_mean') | max %}
+                        {% set best_ari = ok | map(attribute='ari_mean') | max %}
+                        {% set best_f   = ok | map(attribute='f_mean')   | max %}
+                        {% for r in ok %}
+                        <tr>
+                            <td class="fw-semibold">{{ r.algorithm_label }}</td>
+                            <td class="text-end {% if r.nmi_mean == best_nmi and ok|length > 1 %}fw-bold text-success{% endif %}">{{ '%.4f' % r.nmi_mean }}</td>
+                            <td class="text-end text-secondary" style="font-size:.78rem;">{{ '%.4f' % r.nmi_std }}</td>
+                            <td class="text-end {% if r.ari_mean == best_ari and ok|length > 1 %}fw-bold text-success{% endif %}">{{ '%.4f' % r.ari_mean }}</td>
+                            <td class="text-end text-secondary" style="font-size:.78rem;">{{ '%.4f' % r.ari_std }}</td>
+                            <td class="text-end {% if r.f_mean == best_f and ok|length > 1 %}fw-bold text-success{% endif %}">{{ '%.4f' % r.f_mean }}</td>
+                            <td class="text-end text-secondary" style="font-size:.78rem;">{{ '%.4f' % r.f_std }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if ok | length > 1 %}
+            <div style="font-size:.8rem;color:var(--ink-muted);">
+                Лучший результат по каждой метрике выделен <span class="fw-bold text-success">зелёным</span>.
+                Датасет: <strong>{{ ok[0].dataset }}</strong> · m={{ ok[0].m }} · runs={{ ok[0].runs }} · {{ ok[0].method_label }}
+            </div>
             {% else %}
-            <div class="d-flex justify-content-between align-items-center gap-3 mb-2">
-                <div>
-                    <div class="fw-bold" style="font-size:.95rem;">{{ run_result.algorithm_label }}</div>
-                    <div class="section-note" style="font-size:.82rem;">{{ run_result.dataset }} · {{ run_result.method_label }}</div>
-                </div>
-                <div class="text-secondary" style="font-size:.82rem;">{{ run_result.created_at }}</div>
-            </div>
-            <div class="row g-2">
-                <div class="col-md-4"><div class="metric-box"><div class="text-secondary small">NMI</div><div class="metric-value">{{ run_result.nmi_mean }}</div><div class="section-note">std {{ run_result.nmi_std }}</div></div></div>
-                <div class="col-md-4"><div class="metric-box"><div class="text-secondary small">ARI</div><div class="metric-value">{{ run_result.ari_mean }}</div><div class="section-note">std {{ run_result.ari_std }}</div></div></div>
-                <div class="col-md-4"><div class="metric-box"><div class="text-secondary small">F-score</div><div class="metric-value">{{ run_result.f_mean }}</div><div class="section-note">std {{ run_result.f_std }}</div></div></div>
+            <div style="font-size:.8rem;color:var(--ink-muted);">
+                {{ ok[0].dataset }} · m={{ ok[0].m }} · runs={{ ok[0].runs }} · {{ ok[0].method_label }} · {{ ok[0].created_at }}
             </div>
             {% endif %}
             {% endif %}
+
+            {% else %}
+            <div class="d-flex flex-column align-items-center justify-content-center h-100 text-secondary" style="min-height:220px;gap:.75rem;">
+                <svg width="40" height="40" fill="none" stroke="currentColor" stroke-width="1.4" viewBox="0 0 24 24"><path d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z"/></svg>
+                <div style="font-size:.9rem;">Выберите алгоритмы и нажмите <strong>Запустить</strong></div>
+                <div style="font-size:.8rem;">Результаты автоматически сохранятся в журнале экспериментов</div>
+            </div>
+            {% endif %}
+
         </div>
     </div>
 </section>
 
 <script>
-    (function () {
-        const algorithmSelect = document.getElementById("algorithm-select");
-        const groups = document.querySelectorAll(".algorithm-group");
+(function () {
+    const checkboxes = document.querySelectorAll('[name=algorithms]');
 
-        function updateGroups() {
-            const selected = algorithmSelect.value;
-            groups.forEach((group) => {
-                const allowed = (group.dataset.algorithms || "").split(",");
-                const visible = allowed.includes(selected);
-                group.style.display = visible ? "" : "none";
-                const caption = group.previousElementSibling;
-                if (caption && caption.classList.contains("tab-caption")) {
-                    caption.style.display = visible ? "" : "none";
-                }
-            });
-        }
+    function updateBlocks() {
+        const checked = Array.from(checkboxes).filter(c => c.checked).map(c => c.value);
+        document.getElementById('sharpen-block').style.display = checked.includes('hierarchical_weighted') ? '' : 'none';
+        document.getElementById('sdgca-block').style.display = checked.includes('sdgca') ? '' : 'none';
+        document.getElementById('sdgca-mod-block').style.display = checked.includes('sdgca_modified') ? '' : 'none';
+    }
 
-        algorithmSelect.addEventListener("change", updateGroups);
-        updateGroups();
-    })();
+    checkboxes.forEach(c => c.addEventListener('change', updateBlocks));
+    updateBlocks();
+
+    document.getElementById('experiment-form').addEventListener('submit', function () {
+        const btn = document.getElementById('run-btn');
+        const checked = Array.from(checkboxes).filter(c => c.checked);
+        if (checked.length === 0) { alert('Выберите хотя бы один алгоритм.'); return false; }
+        btn.disabled = true;
+        btn.textContent = 'Выполняется...';
+    });
+})();
 </script>
 {% endblock %}
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      

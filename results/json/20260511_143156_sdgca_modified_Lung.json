@@ -1,0 +1,54 @@
+{
+  "dataset": "Lung",
+  "algorithm": "sdgca_modified",
+  "algorithm_label": "SDGCA, модифицированная версия",
+  "method": "average",
+  "method_label": "average",
+  "seed": 19,
+  "m": 10,
+  "runs": 3,
+  "nmi_mean": 0.7389,
+  "nmi_std": 0.026861,
+  "ari_mean": 0.743526,
+  "ari_std": 0.066536,
+  "f_mean": 0.854963,
+  "f_std": 0.04347,
+  "elapsed_sec": 4.14,
+  "created_at": "2026-05-11T14:31:56",
+  "nmi_scores": [
+    0.7083151299072225,
+    0.7737031908026236,
+    0.7346802039449304
+  ],
+  "ari_scores": [
+    0.6525130023489807,
+    0.8097233772999503,
+    0.7683408666877171
+  ],
+  "f_scores": [
+    0.7954375252030647,
+    0.8980318257956449,
+    0.8714192708333334
+  ],
+  "selected_base_clusterings": [
+    97,
+    66,
+    60,
+    81,
+    34,
+    53,
+    28,
+    16,
+    3,
+    10
+  ],
+  "pool_size": 100,
+  "selection_strategy": "random",
+  "qd_alpha": null,
+  "diffusion_time_used": 1.2,
+  "diffusion_time_per_run": [
+    1.2,
+    1.2,
+    1.2
+  ]
+}

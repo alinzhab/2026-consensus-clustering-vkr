@@ -1,0 +1,48 @@
+{
+  "dataset": "Aggregation",
+  "algorithm": "sdgca",
+  "algorithm_label": "SDGCA",
+  "method": "average",
+  "method_label": "average",
+  "seed": 19,
+  "m": 10,
+  "runs": 3,
+  "nmi_mean": 0.978233,
+  "nmi_std": 0.009764,
+  "ari_mean": 0.980334,
+  "ari_std": 0.013387,
+  "f_mean": 0.984528,
+  "f_std": 0.010568,
+  "elapsed_sec": 76.97,
+  "created_at": "2026-05-11T14:25:22",
+  "nmi_scores": [
+    0.9851370251428081,
+    0.9851370251428081,
+    0.9644253977008359
+  ],
+  "ari_scores": [
+    0.9898005667112105,
+    0.9898005667112105,
+    0.961401947540197
+  ],
+  "f_scores": [
+    0.9920003588624062,
+    0.9920003588624062,
+    0.9695831368910924
+  ],
+  "selected_base_clusterings": [
+    97,
+    66,
+    60,
+    81,
+    34,
+    53,
+    28,
+    16,
+    3,
+    10
+  ],
+  "pool_size": 100,
+  "selection_strategy": "random",
+  "qd_alpha": null
+}

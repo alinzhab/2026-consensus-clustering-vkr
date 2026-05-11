@@ -2,47 +2,89 @@
 
 {% block content %}
 <section class="page-hero">
-    <div class="page-kicker">Страница результатов</div>
-    <h1 class="display-5 fw-bold mb-3">Журнал проведённых экспериментов</h1>
-    <p class="lead text-secondary mb-0">Все запуски сохраняются отдельно, поэтому результаты удобно сравнивать и использовать при подготовке отчёта или демонстрации.</p>
+    <div class="page-kicker">Результаты</div>
+    <h1 class="display-5 fw-bold mb-1">История запусков</h1>
+    <p class="lead text-secondary mb-0">Все эксперименты сохраняются автоматически. Сравнительные графики и сводки массового бенчмарка — на соседних вкладках.</p>
 </section>
 
-<section class="card-panel p-4 mt-4">
-    <div class="d-flex justify-content-between align-items-center gap-3 mb-3">
-        <h2 class="h4 mb-0">Сохранённые результаты</h2>
-        <div class="text-secondary">Всего: {{ result_count }}</div>
+<ul class="nav nav-tabs" style="flex:0 0 auto;">
+    <li class="nav-item"><a class="nav-link active" href="{{ url_for('results_page') }}">История · {{ result_count }}</a></li>
+    <li class="nav-item"><a class="nav-link" href="{{ url_for('analytics_page') }}">Сравнение</a></li>
+    <li class="nav-item"><a class="nav-link" href="{{ url_for('massive_analytics_page') }}">Бенчмарк</a></li>
+</ul>
+
+<section class="card-panel p-3 d-flex flex-column" style="flex:1 1 auto; min-height:0; gap:.6rem;">
+    <div class="d-flex justify-content-between align-items-center gap-2">
+        <h2 class="h6 mb-0">Сохранённые запуски</h2>
+        <div class="d-flex gap-2 align-items-center" style="flex:0 0 auto;">
+            <input id="filterInput" type="text" class="form-control form-control-sm" placeholder="фильтр по датасету или алгоритму" style="max-width:280px;">
+            <span class="text-secondary" style="font-size:.83rem;">показано <span id="visibleCount">{{ result_count }}</span> из {{ result_count }}</span>
+        </div>
     </div>
-    <div class="table-responsive">
-        <table class="table align-middle">
+
+    <div class="table-responsive" style="flex:1 1 auto; min-height:0; overflow:auto;">
+        <table class="table table-sm align-middle mb-0" id="resultsTable">
             <thead>
                 <tr>
                     <th>Дата</th>
                     <th>Датасет</th>
                     <th>Алгоритм</th>
-                    <th>Правило объединения</th>
-                    <th>NMI</th>
-                    <th>ARI</th>
-                    <th>F-score</th>
+                    <th>Linkage</th>
+                    <th class="text-end">NMI</th>
+                    <th class="text-end">ARI</th>
+                    <th class="text-end">F-score</th>
+                    <th class="text-end">m</th>
+                    <th class="text-end">runs</th>
                 </tr>
             </thead>
-            <tbody>
+            <tbody id="resultsBody">
                 {% for item in results %}
                 <tr>
-                    <td>{{ item.created_at }}</td>
+                    <td class="small-mono" style="font-size:.78rem;">{{ item.created_at }}</td>
                     <td>{{ item.dataset }}</td>
                     <td>{{ item.algorithm_label }}</td>
                     <td>{{ item.method_label }}</td>
-                    <td>{{ item.nmi_mean }}</td>
-                    <td>{{ item.ari_mean }}</td>
-                    <td>{{ item.f_mean }}</td>
+                    <td class="metric text-end">{{ item.nmi_mean }}</td>
+                    <td class="metric text-end">{{ item.ari_mean }}</td>
+                    <td class="metric text-end">{{ item.f_mean }}</td>
+                    <td class="text-end">{{ item.m }}</td>
+                    <td class="text-end">{{ item.runs }}</td>
                 </tr>
                 {% else %}
-                <tr>
-                    <td colspan="7" class="text-secondary">Пока результатов нет. Сначала запустите алгоритм на странице «Тестирование».</td>
-                </tr>
+                <tr><td colspan="9" class="text-secondary" style="font-style:italic;">Пока результатов нет. Запустите эксперимент на странице «Эксперимент».</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 </section>
+
+<style>
+    .metric { font-family: ui-monospace, Consolas, monospace; font-size: .86rem; }
+    #resultsTable tbody tr:hover { background: var(--surface-muted); }
+    .nav-tabs .nav-link { color: var(--ink-muted); }
+    .nav-tabs .nav-link.active { color: #fff; background: var(--ink); border-color: var(--ink); }
+</style>
+
+<script>
+(function () {
+    'use strict';
+    var input = document.getElementById('filterInput');
+    var body  = document.getElementById('resultsBody');
+    var visible = document.getElementById('visibleCount');
+    var rows = Array.prototype.slice.call(body.querySelectorAll('tr'));
+    function apply() {
+        var q = (input.value || '').toLowerCase().trim();
+        var shown = 0;
+        rows.forEach(function (tr) {
+            if (tr.children.length < 4) { tr.style.display = ''; return; }
+            var text = tr.textContent.toLowerCase();
+            var match = !q || text.indexOf(q) >= 0;
+            tr.style.display = match ? '' : 'none';
+            if (match) shown += 1;
+        });
+        visible.textContent = shown;
+    }
+    if (input) input.addEventListener('input', apply);
+})();
+</script>
 {% endblock %}
