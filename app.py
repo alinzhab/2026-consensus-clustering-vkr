@@ -1706,10 +1706,33 @@ def api_ai_agent_dataset(dataset_name):
         clean_analysis = _clean(analysis)
         clean_recs = _clean(recommendations)
 
+        # Определяем primary-алгоритм из системной диагностики, чтобы LLM не придумывал чужие алгоритмы
+        _per_algo = clean_recs.get("per_algorithm") or {}
+        if "sdgca_modified" in _per_algo:
+            _primary_algo = "sdgca_modified"
+        elif "hierarchical_weighted" in _per_algo:
+            _primary_algo = "hierarchical_weighted"
+        else:
+            _primary_algo = "hierarchical_baseline"
+        _primary_params = _per_algo.get(_primary_algo, {})
+        _primary_method = _primary_params.get("method", "average")
+
         prompt = (
-            "Ты эксперт по кластеризации данных. Проанализируй датасет и верни ответ ТОЛЬКО в виде JSON, "
+            "Ты эксперт по консенсусной кластеризации. Проанализируй датасет и верни ответ ТОЛЬКО в виде JSON, "
             "без каких-либо пояснений вне JSON.\n\n"
-            f"Датасет: {dataset_name}\n"
+            "ЖЁСТКИЕ ОГРАНИЧЕНИЯ:\n"
+            "1. В системе РЕАЛИЗОВАНЫ ТОЛЬКО эти 4 алгоритма (поле 'algorithm' может содержать только одно из этих значений):\n"
+            "   - hierarchical_baseline (базовая иерархическая консенсусная кластеризация)\n"
+            "   - hierarchical_weighted (взвешенная иерархическая консенсусная кластеризация)\n"
+            "   - sdgca (Similarity and Dissimilarity Guided Co-association Matrix Construction)\n"
+            "   - sdgca_modified (авторская модификация SDGCA с нечётким энтропийным взвешиванием и графовой диффузией)\n"
+            "2. КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО рекомендовать DBSCAN, HDBSCAN, k-means, GMM, OPTICS, спектральную кластеризацию "
+            "и любые другие алгоритмы, не входящие в список выше. Эти алгоритмы НЕ реализованы в системе.\n"
+            "3. ЗАПРЕЩЕНО придумывать числовые значения параметров. Используй ТОЛЬКО значения из секции "
+            "'РЕКОМЕНДОВАННЫЕ СИСТЕМОЙ ПАРАМЕТРЫ' ниже — они уже рассчитаны для этого датасета.\n"
+            "4. Поле 'algorithm' в JSON должно быть строкой ровно из списка пункта 1.\n\n"
+            "=== ДАТАСЕТ ===\n"
+            f"Имя: {dataset_name}\n"
             f"Объектов: {clean_analysis.get('n_objects') or clean_analysis.get('n_samples')}, "
             f"Признаков: {clean_analysis.get('n_features')}, "
             f"Классов: {clean_analysis.get('n_classes')}\n"
@@ -1719,23 +1742,73 @@ def api_ai_agent_dataset(dataset_name):
             f"Вариация плотности: {clean_analysis.get('density_variation')}, "
             f"Вытянутость: {clean_analysis.get('elongation_max')}, "
             f"Выбросы: {clean_analysis.get('outlier_ratio')}\n"
-            f"Есть members: {clean_analysis.get('has_members')}\n"
-            f"Рекомендованные параметры: m={clean_recs.get('m')}, "
-            f"k_min={clean_recs.get('k_min')}, k_max={clean_recs.get('k_max')}, "
-            f"strategy={clean_recs.get('strategy')}\n\n"
-            'Верни JSON строго следующей структуры (все поля на русском языке):\n'
-            '{\n'
-            '  "summary": "краткий вывод о датасете и лучшем алгоритме (2-3 предложения)",\n'
+            f"Есть готовый ансамбль (members): {clean_analysis.get('has_members')}\n\n"
+            "=== РЕКОМЕНДОВАННЫЕ СИСТЕМОЙ ПАРАМЕТРЫ (ИСПОЛЬЗУЙ ИМЕННО ЭТИ ЗНАЧЕНИЯ) ===\n"
+            f"algorithm: {_primary_algo}\n"
+            f"m: {clean_recs.get('m')}\n"
+            f"k_min: {clean_recs.get('k_min')}\n"
+            f"k_max: {clean_recs.get('k_max')}\n"
+            f"strategy: {clean_recs.get('strategy')}\n"
+            f"linkage (правило объединения): {_primary_method}\n\n"
+            "=== ФОРМАТ ОТВЕТА ===\n"
+            "Верни JSON строго следующей структуры (все текстовые поля на русском языке):\n"
+            "{\n"
+            '  "summary": "2-3 предложения о датасете и почему рекомендуется указанный выше алгоритм",\n'
             '  "findings": ["наблюдение 1", "наблюдение 2", "наблюдение 3"],\n'
-            '  "warnings": ["предупреждение если есть, иначе пустой массив"],\n'
-            '  "recommended_parameters": {"m": 20, "k_min": 2, "k_max": 8, "strategy": "mixed", "algorithm": "название"},\n'
-            '  "evidence": {"silhouette_score": "0.xxx", "overlap_ratio": "0.xxx", "imbalance_ratio": "0.xxx"}\n'
-            '}'
+            '  "warnings": ["предупреждения по структуре данных или пустой массив"],\n'
+            '  "recommended_parameters": {\n'
+            f'    "algorithm": "{_primary_algo}",\n'
+            f'    "m": {clean_recs.get("m")},\n'
+            f'    "k_min": {clean_recs.get("k_min")},\n'
+            f'    "k_max": {clean_recs.get("k_max")},\n'
+            f'    "strategy": "{clean_recs.get("strategy")}",\n'
+            f'    "linkage": "{_primary_method}"\n'
+            '  },\n'
+            '  "evidence": {"silhouette_score": "...", "overlap_ratio": "...", "imbalance_ratio": "..."}\n'
+            "}"
         )
 
         import re as _re
         import sys as _sys
         _sys.path.insert(0, str(BASE_DIR))
+
+        # Список разрешённых алгоритмов (синхронизирован с AlgorithmRegistry)
+        _ALLOWED_ALGOS = {
+            "hierarchical_baseline", "hierarchical_weighted",
+            "sdgca", "sdgca_modified",
+        }
+        # Канонические значения параметров для подстановки в ответ LLM
+        _canonical_params = {
+            "algorithm": _primary_algo,
+            "m": clean_recs.get("m"),
+            "k_min": clean_recs.get("k_min"),
+            "k_max": clean_recs.get("k_max"),
+            "strategy": clean_recs.get("strategy"),
+            "linkage": _primary_method,
+        }
+
+        def _sanitize_agent_params(agent_dict: dict) -> dict:
+            """Перезаписывает галлюцинированные значения параметров системными.
+            LLM (Llama 3.1 8B) склонна копировать примеры из промпта и придумывать
+            алгоритмы; здесь жёстко фиксируем то, что реально рекомендовала система."""
+            params = agent_dict.get("recommended_parameters") or {}
+            if not isinstance(params, dict):
+                params = {}
+            llm_algo = str(params.get("algorithm", "")).strip().lower().replace(" ", "_")
+            # Если LLM написала запрещённый алгоритм — заменяем на системный
+            if llm_algo not in _ALLOWED_ALGOS:
+                params["algorithm"] = _canonical_params["algorithm"]
+                warnings_list = agent_dict.get("warnings") or []
+                if not isinstance(warnings_list, list):
+                    warnings_list = []
+                # Не оповещаем пользователя о подмене — это технический фикс
+                agent_dict["warnings"] = warnings_list
+            # Числовые параметры всегда берём из системной диагностики, а не от LLM
+            for key in ("m", "k_min", "k_max", "strategy", "linkage"):
+                params[key] = _canonical_params[key]
+            agent_dict["recommended_parameters"] = params
+            return agent_dict
+
         try:
             from ai_agent.client import ask_llm
             llm_raw = ask_llm(prompt)
@@ -1744,7 +1817,8 @@ def api_ai_agent_dataset(dataset_name):
                 agent = json.loads(json_match.group())
             else:
                 agent = {"summary": llm_raw, "findings": [], "warnings": [],
-                         "recommended_parameters": clean_recs, "evidence": {}}
+                         "recommended_parameters": dict(_canonical_params), "evidence": {}}
+            agent = _sanitize_agent_params(agent)
         except Exception as llm_exc:
             agent = {
                 "summary": (
@@ -1753,7 +1827,7 @@ def api_ai_agent_dataset(dataset_name):
                 ),
                 "findings": [],
                 "warnings": [],
-                "recommended_parameters": clean_recs,
+                "recommended_parameters": dict(_canonical_params),
                 "evidence": {},
             }
 
