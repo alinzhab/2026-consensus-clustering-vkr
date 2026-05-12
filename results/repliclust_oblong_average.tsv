@@ -1,2 +1,0 @@
-dataset	mode	nmi_mean	nmi_std	ari_mean	ari_std	f_mean	f_std	seconds
-repliclust_oblong_overlap	baseline	0.753842	0.059443	0.562952	0.094589	0.669627	0.066715	11.24

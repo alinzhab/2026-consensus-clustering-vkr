@@ -1,7 +1,0 @@
-dataset	version	method	nmi_mean	ari_mean	f_mean	seconds
-densired_compact_hard	baseline	average	0.770442	0.546219	0.608157	690.97
-densired_compact_hard	modified	average	0.814871	0.597983	0.651135	406.36
-densired_compact_hard	baseline	complete	0.776482	0.549284	0.610465	633.25
-densired_compact_hard	modified	complete	0.868213	0.716062	0.750631	409.34
-densired_compact_hard	baseline	single	0.331445	0.089790	0.248330	542.69
-densired_compact_hard	modified	single	0.674249	0.386683	0.478670	484.75
